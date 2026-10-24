@@ -26,6 +26,18 @@ export const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,'http://localhost');
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
+  if(url.pathname.startsWith('/api/healthcare/county/')){
+   const fips=url.pathname.slice('/api/healthcare/county/'.length);
+   if(!/^[0-9]{5}$/.test(fips)){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Invalid county FIPS'}));return;}
+   const category=url.searchParams.get('category');
+   if(category && !['hospital','clinic','urgent-care','pharmacy','laboratory','imaging','dental','other'].includes(category)){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Invalid category'}));return;}
+   try{
+    const params=category?[fips,category]:[fips];
+    const rows=await pool.query('SELECT id,name,category,address,phone,website,latitude,longitude FROM healthcare_facilities WHERE county_fips=$1'+(category?' AND category=$2':'')+' ORDER BY name LIMIT 5000',params);
+    const facilities=rows.rows.map(row=>({...row,latitude:row.latitude==null?null:Number(row.latitude),longitude:row.longitude==null?null:Number(row.longitude)}));
+    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(req.method==='HEAD'?undefined:JSON.stringify({county_fips:fips,facilities}));return;
+   }catch(e){console.error('Healthcare facility lookup failed',e.code||e.name);res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Healthcare facility dataset unavailable; apply healthcare schema first'}));return;}
+  }
   if(url.pathname.startsWith('/api/govdir/county/')){
    const fips=url.pathname.slice('/api/govdir/county/'.length);
    try{
