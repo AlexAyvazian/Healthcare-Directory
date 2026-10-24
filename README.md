@@ -19,18 +19,30 @@ Facility data is served from the **Neon Data API** over HTTPS (not hardcoded in 
 
 The new Neon HEALTHCARE_DIRECTORY project has no imported facility records yet, so the map shows an empty state until you add them. The static site still loads when Neon is idle; the first facility query may pause while the free database wakes.
 
-### Imports
+### Private facility imports only
 
-The previous `/api/admin/facilities/import` Node endpoint **cannot run** on Render static hosting. **Browser uploads are currently disabled** pending Neon Auth administrator sign-in and restrictive write RLS policies. `/admin.html` explains the secure temporary import workflow, and includes a CSV template.
+**Public viewers cannot upload, export, or download directory data through the website.**
+The public Render Static Site includes **no upload forms, administrator page, CSV download,
+or export button**. The deployed `dist` includes only the map and read-only facilities
+viewer; `admin.html` and the old browser upload script have been removed from the repository.
 
-Until browser admin auth is deployed, use a trusted computer or secure scheduled job to run:
+For administrator-only bulk imports, use the command-line importer on a trusted computer,
+private CI job, or similarly restricted environment. It does **not** run in the public viewer:
 
 ```bash
 npm run import:facilities -- /path/to/facilities.csv --dry-run
 npm run import:facilities -- /path/to/facilities.csv
 ```
 
-The importer requires `DATABASE_URL` set **privately in the terminal or runner environment**. Do not add it to Render Static Site environment variables, because build-time variables can be compiled into public assets. Do not upload PHI. The database owner password previously shared in chat should be rotated.
+Set the private `DATABASE_URL` only in that environment. Do not expose PostgreSQL credentials,
+Neon management API keys, or import tokens to browsers, Render static assets, or GitHub files.
+Rotate the database owner password previously pasted into chat.
+
+**Important:** Since directory records are publicly visible through the read-only Neon Data
+API, a technically capable visitor can still manually copy displayed information or query
+the public API. Removing buttons is **not** a prevention mechanism for extracting public
+records. Truly preventing retrieval requires authenticated access control and limiting
+who can view the data.
 
 ## Node backend
 

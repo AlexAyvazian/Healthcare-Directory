@@ -1,5 +1,5 @@
 import {listCountyFacilities,listCategories} from './neon-data.js';
-/* All facility records and category choices are loaded from /api/healthcare; none are bundled. */
+/* Viewer-only map: facility records and categories come from the read-only Neon Data API. */
 (() => {
 'use strict';
 const states=topojson.feature(window.US_ATLAS,window.US_ATLAS.objects.states).features;
