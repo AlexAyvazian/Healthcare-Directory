@@ -1,31 +1,118 @@
-/* Healthcare map. Uses only geographic boundaries and dedicated /api/healthcare data. */
+/* All facility records and category choices are loaded from /api/healthcare; none are bundled. */
 (() => {
 'use strict';
-const STATES=[['AL','Alabama','01'],['AK','Alaska','02'],['AZ','Arizona','04'],['AR','Arkansas','05'],['CA','California','06'],['CO','Colorado','08'],['CT','Connecticut','09'],['DE','Delaware','10'],['DC','District of Columbia','11'],['FL','Florida','12'],['GA','Georgia','13'],['HI','Hawaii','15'],['ID','Idaho','16'],['IL','Illinois','17'],['IN','Indiana','18'],['IA','Iowa','19'],['KS','Kansas','20'],['KY','Kentucky','21'],['LA','Louisiana','22'],['ME','Maine','23'],['MD','Maryland','24'],['MA','Massachusetts','25'],['MI','Michigan','26'],['MN','Minnesota','27'],['MS','Mississippi','28'],['MO','Missouri','29'],['MT','Montana','30'],['NE','Nebraska','31'],['NV','Nevada','32'],['NH','New Hampshire','33'],['NJ','New Jersey','34'],['NM','New Mexico','35'],['NY','New York','36'],['NC','North Carolina','37'],['ND','North Dakota','38'],['OH','Ohio','39'],['OK','Oklahoma','40'],['OR','Oregon','41'],['PA','Pennsylvania','42'],['RI','Rhode Island','44'],['SC','South Carolina','45'],['SD','South Dakota','46'],['TN','Tennessee','47'],['TX','Texas','48'],['UT','Utah','49'],['VT','Vermont','50'],['VA','Virginia','51'],['WA','Washington','53'],['WV','West Virginia','54'],['WI','Wisconsin','55'],['WY','Wyoming','56']];
-const byFips=new Map(STATES.map(s=>[s[2],s]));const byAbbr=new Map(STATES.map(s=>[s[0],s]));
-const allStates=topojson.feature(window.US_ATLAS,window.US_ATLAS.objects.states).features;
-const allCounties=topojson.feature(window.US_ATLAS,window.US_ATLAS.objects.counties).features;
-const $=id=>document.getElementById(id),svg=d3.select('#mapSvg');
-let state=null,county=null,facilities=[],requestId=0;
-const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const countyId=f=>String(f.id).padStart(5,'0');
-const stateId=f=>String(f.id).padStart(2,'0');
-function render(){
-const rect=$('mapSvg').getBoundingClientRect();const width=Math.max(rect.width,320),height=Math.max(rect.height,330);
-svg.attr('viewBox',[0,0,width,height]);svg.selectAll('*').remove();
-const region=state?allCounties.filter(f=>countyId(f).startsWith(state[2])):allStates;
-const projection=d3.geoIdentity().reflectY(true).fitExtent([[22,22],[width-22,height-22]],{type:'FeatureCollection',features:region});
-const path=d3.geoPath(projection);
-svg.append('g').selectAll('path').data(region).join('path').attr('class',state?'county':'state').classed('selected',f=>countyId(f)===county).attr('d',path).attr('tabindex',0).attr('role','button').attr('aria-label',f=>state?(f.properties?.name||countyId(f)):(byFips.get(stateId(f))?.[1]||'State')).on('click',(_,f)=>choose(f)).on('keydown',(event,f)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();choose(f);}});
-if(state&&county){const selected=region.find(f=>countyId(f)===county);if(selected){const dots=svg.append('g');for(const facility of facilities){if(!Number.isFinite(facility.latitude)||!Number.isFinite(facility.longitude))continue;const point=projection([facility.longitude,facility.latitude]);if(point&&Number.isFinite(point[0])&&Number.isFinite(point[1])&&d3.geoContains(selected,[facility.longitude,facility.latitude]))dots.append('circle').attr('class','facility-pin').attr('cx',point[0]).attr('cy',point[1]).attr('r',4).append('title').text(facility.name);}}}
-$('back').hidden=!state;$('breadcrumb').textContent=state?state[1]+(county?' / '+(region.find(f=>countyId(f)===county)?.properties?.name||county):''):'';
-$('status').textContent=state?(county?'County selected':'Select a county'):'Select a state';
+const states=topojson.feature(window.US_ATLAS,window.US_ATLAS.objects.states).features;
+const counties=topojson.feature(window.US_ATLAS,window.US_ATLAS.objects.counties).features;
+const $=id=>document.getElementById(id);
+const svg=d3.select('#mapSvg');
+const fips=feature=>String(feature.id).padStart(feature.id?.length===2?2:5,'0');
+const stateFips=feature=>String(feature.id).padStart(2,'0');
+const countyFips=feature=>String(feature.id).padStart(5,'0');
+const toAtlas=d3.geoAlbersUsa().scale(1300).translate([487.5,305]);
+let state=null,county=null,facilities=[],currentPage=0,total=0,requestId=0;
+const categorySelect=$('category'),list=$('facilityList'),loadMore=$('loadMore');
+
+function insideRing(p,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const a=ring[i],b=ring[j];
+    if(((a[1]>p[1])!==(b[1]>p[1]))&&(p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0]))inside=!inside;
+  }
+  return inside;
 }
-function choose(f){if(!state){state=byFips.get(stateId(f))||null;county=null;facilities=[];clearList('Select a county to see healthcare facilities.');render();return;}county=countyId(f);render();load();}
-function clearList(message){$('subtitle').textContent=message;$('facilityList').replaceChildren();}
-async function load(){const id=++requestId;facilities=[];const fips=county;const category=$('category').value;clearList('Loading facilities…');
-try{const result=await fetch('/api/healthcare/county/'+encodeURIComponent(fips)+(category?'?category='+encodeURIComponent(category):''),{cache:'no-store'});if(!result.ok)throw Error('HTTP '+result.status);const data=await result.json();if(id!==requestId||county!==fips)return;if(!Array.isArray(data.facilities))throw Error('Invalid facility data');facilities=data.facilities;const list=$('facilityList');clearList(facilities.length?facilities.length+' facilities listed':'No facility records imported for this county yet.');for(const item of facilities){const card=document.createElement('article');card.className='facility';const parts=['<h2>'+safe(item.name)+'</h2>','<div>'+safe(item.category)+'</div>'];if(item.address)parts.push('<div>'+safe(item.address)+'</div>');if(item.phone)parts.push('<div>'+safe(item.phone)+'</div>');if(item.website&&/^https?:\/\//.test(item.website))parts.push('<div><a rel="noopener noreferrer" target="_blank" href="'+safe(item.website)+'">Website</a></div>');card.innerHTML=parts.join('');list.appendChild(card);}render();}
-catch(e){if(id!==requestId)return;clearList('Healthcare facility service unavailable. Please retry.');}}
-function reset(){requestId++;state=null;county=null;facilities=[];clearList('Select a state and county to view healthcare facilities.');render();}
-$('home').addEventListener('click',reset);$('back').addEventListener('click',reset);$('category').addEventListener('change',()=>{if(county)load();});window.addEventListener('resize',render);reset();
+function inCounty(point,feature){
+  const polygons=feature.geometry.type==='Polygon'?[feature.geometry.coordinates]:feature.geometry.coordinates;
+  return polygons.some(polygon=>insideRing(point,polygon[0])&&!polygon.slice(1).some(hole=>insideRing(point,hole)));
+}
+function render(){
+  const el=$('mapSvg'),rect=el.getBoundingClientRect();
+  const width=Math.max(rect.width,320),height=Math.max(rect.height,330);
+  svg.attr('viewBox',[0,0,width,height]);svg.selectAll('*').remove();
+  const region=state?counties.filter(c=>countyFips(c).startsWith(stateFips(state))):states;
+  const projection=d3.geoIdentity().fitExtent([[20,20],[width-20,height-20]],{type:'FeatureCollection',features:region});
+  const path=d3.geoPath(projection);
+  svg.append('g').selectAll('path').data(region).join('path')
+    .attr('class',state?'county':'state').classed('selected',c=>county&&countyFips(c)===countyFips(county))
+    .attr('d',path).attr('tabindex',0).attr('role','button')
+    .attr('aria-label',c=>(c.properties?.name||'Unknown')+(state?' County':''))
+    .on('click',(_,c)=>choose(c))
+    .on('keydown',(e,c)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(c);}});
+  if(county){
+    const pins=svg.append('g');
+    for(const record of facilities){
+      const lat=Number(record.latitude),lon=Number(record.longitude);
+      if(record.latitude==null||record.longitude==null||!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+      const atlasPoint=toAtlas([lon,lat]);
+      if(!atlasPoint||!inCounty(atlasPoint,county))continue;
+      const pixel=projection(atlasPoint);
+      pins.append('circle').attr('class','facility-pin').attr('cx',pixel[0]).attr('cy',pixel[1]).attr('r',4).append('title').text(record.name);
+    }
+  }
+  $('back').hidden=!state;
+  $('breadcrumb').textContent=state?(state.properties?.name||stateFips(state))+(county?' / '+(county.properties?.name||countyFips(county)):''):'';
+  $('status').textContent=county?'County selected':state?'Select a county':'Select a state';
+}
+function clearList(message){$('subtitle').textContent=message;list.replaceChildren();loadMore.hidden=true;}
+function textNode(tag,value,parent){const node=document.createElement(tag);node.textContent=String(value);parent.appendChild(node);return node;}
+function addFacility(item){
+  const card=document.createElement('article');card.className='facility';
+  textNode('h2',item.name,card);textNode('div',item.category||'Facility',card);
+  const address=[item.address,item.city,item.state,item.postal_code].filter(Boolean).join(', ');
+  if(address)textNode('div',address,card);
+  if(item.phone)textNode('div',item.phone,card);
+  if(item.email)textNode('div',item.email,card);
+  if(item.source_name)textNode('small','Source: '+item.source_name,card);
+  if(item.website&&/^https?:\/\//i.test(item.website)){
+    const link=document.createElement('a');link.href=item.website;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Website';card.appendChild(link);
+  }
+  list.appendChild(card);
+}
+async function load({append=false}={}){
+  if(!county)return;
+  const id=++requestId,selectedCounty=countyFips(county),selectedCategory=categorySelect.value;
+  const page=append?currentPage+1:1;
+  if(!append){facilities=[];currentPage=0;clearList('Loading facilities…');render();}
+  loadMore.disabled=true;
+  try{
+    const params=new URLSearchParams({page:String(page),per_page:'100'});
+    if(selectedCategory)params.set('category',selectedCategory);
+    const response=await fetch('/api/healthcare/county/'+encodeURIComponent(selectedCounty)+'?'+params,{cache:'no-store'});
+    if(!response.ok)throw new Error('Facility lookup failed.');
+    const data=await response.json();
+    if(id!==requestId||!county||countyFips(county)!==selectedCounty||categorySelect.value!==selectedCategory)return;
+    if(!Array.isArray(data.facilities))throw new Error('Unexpected facility response.');
+    if(!append)list.replaceChildren();
+    facilities.push(...data.facilities);for(const item of data.facilities)addFacility(item);
+    currentPage=page;total=Number(data.total||0);
+    $('subtitle').textContent=total?`Showing ${facilities.length} of ${total} facilities`:'No facility records imported for this county yet.';
+    loadMore.hidden=!data.has_more;render();
+  }catch(e){
+    if(id===requestId){if(!append)clearList('Healthcare facility service unavailable. Check the database connection.');else $('subtitle').textContent='Could not load more facilities.';}
+  }finally{if(id===requestId)loadMore.disabled=false;}
+}
+function choose(feature){
+  requestId++;
+  if(!state){state=feature;county=null;facilities=[];currentPage=0;clearList('Select a county to see healthcare facilities.');render();return;}
+  county=feature;facilities=[];currentPage=0;render();load();
+}
+function reset(){requestId++;state=null;county=null;facilities=[];currentPage=0;clearList('Select a state and county to view facilities stored in Neon.');render();}
+async function loadCategories(){
+  try{
+    const response=await fetch('/api/healthcare/categories',{cache:'no-store'});
+    if(!response.ok)throw new Error('Category service unavailable');
+    const data=await response.json();
+    if(!Array.isArray(data.categories))return;
+    for(const entry of data.categories){
+      if(typeof entry.category!=='string')continue;
+      const option=document.createElement('option');option.value=entry.category;
+      option.textContent=entry.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())+' ('+entry.total+')';
+      categorySelect.appendChild(option);
+    }
+  }catch{ /* The map remains usable without category counts. */ }
+}
+$('home').addEventListener('click',reset);$('back').addEventListener('click',reset);
+categorySelect.addEventListener('change',()=>{if(county)load();});
+loadMore.addEventListener('click',()=>load({append:true}));
+window.addEventListener('resize',render);
+reset();loadCategories();
 })();

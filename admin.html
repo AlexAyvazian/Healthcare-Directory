@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Import Healthcare Facilities</title><link rel="stylesheet" href="/assets/css/healthcare.css"></head>
+<body>
+<header class="topbar"><strong>Healthcare Facility Map</strong><nav><a href="/" class="toplink">Return to map</a></nav></header>
+<main class="adminMain">
+<section class="adminCard">
+<h1>Import healthcare facilities</h1>
+<p>Upload CSV or JSON facility records into Neon. Existing records from the same source are updated rather than duplicated. No data is stored in your browser or in GitHub.</p>
+<form id="importForm">
+  <label for="adminToken">Administrator import token</label>
+  <input id="adminToken" type="password" autocomplete="off" spellcheck="false" required minlength="24" placeholder="Private server-side IMPORT_TOKEN">
+  <label for="facilityFile">Facility data file (.csv or .json)</label>
+  <input id="facilityFile" type="file" accept=".csv,.json,text/csv,application/json" required>
+  <button id="submitUpload" type="submit">Upload facility records</button>
+  <p id="uploadResult" role="status" aria-live="polite"></p>
+</form>
+<h2>Required columns</h2>
+<p><code>source_name</code>, <code>source_record_id</code>, <code>name</code>, <code>category</code>, <code>county_fips</code>.</p>
+<p>Optional: address, city, state, postal_code, phone, email, website, latitude, longitude, source_url, metadata. County FIPS must contain five digits, including leading zeros. Categories are created dynamically from imported records.</p>
+<button id="downloadTemplate" type="button">Download blank CSV template</button>
+<p class="muted">Uploads are limited to 8 MB and 5,000 rows per request. Do not upload patient records or protected health information.</p>
+</section>
+</main>
+<script src="/assets/js/import-facilities.js"></script>
+</body>
+</html>
