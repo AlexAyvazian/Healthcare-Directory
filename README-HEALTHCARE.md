@@ -1,17 +1,15 @@
 # Healthcare Facility Map (migration branch)
 
-This branch introduces a **map-only healthcare directory** prototype. The old employee directory and procurement interfaces are not loaded by the new app shell. The county employee datasets and existing database tables are **not erased** on this branch.
+This is a map-only healthcare directory prototype. The app preserves geographic state and county boundaries. It does **not** connect to Neon or any database.
 
-## Geographic navigation
+## Current data status
 
-Click a U.S. state, then a county. The county selection requests `GET /api/healthcare/county/:fips`, with optional `?category=` filter. Facilities have validated county FIPS and optional WGS84 latitude/longitude pins. No government employee records are returned.
+The endpoint `GET /api/healthcare/county/:fips` returns an empty `facilities` array with `data_status: "not_configured"` until an independent healthcare data source is integrated. No healthcare facilities are fabricated. The Neon project and its data are **not modified or deleted**.
 
-## Data model
+## Cleanup status
 
-A dedicated `healthcare_facilities` table stores `id, county_fips, name, category, address, phone, website, latitude, longitude`. Create the table with `scripts/healthcare_schema.sql`. An empty table produces an honest empty result, not fabricated healthcare facilities.
-
-This migration intentionally leaves existing procurement datasets and Neon database untouched; database deletion must be handled separately after verified backup and source identification.
+The active server no longer imports `pg`, reads `DIRECTORY_DATABASE`, connects to Neon, or serves the former procurement database routes. Legacy source files, workflows, schemas and hardcoded datasets still require repository cleanup and dependency review. They are not used by the new app entry point.
 
 ## Quality checks
 
-Run `npm test`. Verify state/county click, empty counties, data-loaded counties, category filter, geographic pins, and mobile layout against a running server.
+Run `npm test` and check state/county navigation and responsive layout in a browser. No live deployment is claimed.
