@@ -15,5 +15,6 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npm test
+      - run: npm run build
       - run: node --check assets/js/healthcare-map.js
       - run: node --check assets/js/import-facilities.js

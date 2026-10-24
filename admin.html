@@ -1,27 +1,16 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Import Healthcare Facilities</title><link rel="stylesheet" href="/assets/css/healthcare.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Healthcare Facility Imports</title><link rel="stylesheet" href="/assets/css/healthcare.css"></head>
 <body>
-<header class="topbar"><strong>Healthcare Facility Map</strong><nav><a href="/" class="toplink">Return to map</a></nav></header>
-<main class="adminMain">
-<section class="adminCard">
+<header class="topbar"><strong>Healthcare Facility Map</strong><nav><a class="toplink" href="/">Return to map</a></nav></header>
+<main class="adminMain"><section class="adminCard">
 <h1>Import healthcare facilities</h1>
-<p>Upload CSV or JSON facility records into Neon. Existing records from the same source are updated rather than duplicated. No data is stored in your browser or in GitHub.</p>
-<form id="importForm">
-  <label for="adminToken">Administrator import token</label>
-  <input id="adminToken" type="password" autocomplete="off" spellcheck="false" required minlength="24" placeholder="Private server-side IMPORT_TOKEN">
-  <label for="facilityFile">Facility data file (.csv or .json)</label>
-  <input id="facilityFile" type="file" accept=".csv,.json,text/csv,application/json" required>
-  <button id="submitUpload" type="submit">Upload facility records</button>
-  <p id="uploadResult" role="status" aria-live="polite"></p>
-</form>
-<h2>Required columns</h2>
-<p><code>source_name</code>, <code>source_record_id</code>, <code>name</code>, <code>category</code>, <code>county_fips</code>.</p>
-<p>Optional: address, city, state, postal_code, phone, email, website, latitude, longitude, source_url, metadata. County FIPS must contain five digits, including leading zeros. Categories are created dynamically from imported records.</p>
-<button id="downloadTemplate" type="button">Download blank CSV template</button>
-<p class="muted">Uploads are limited to 8 MB and 5,000 rows per request. Do not upload patient records or protected health information.</p>
-</section>
-</main>
-<script src="/assets/js/import-facilities.js"></script>
-</body>
-</html>
+<p>The map reads records directly from Neon. Browser uploads are temporarily disabled on static hosting until the administrator login and database write permissions are configured. No database owner password or import token should be entered into a static website.</p>
+<h2>Import records securely now</h2>
+<p>From a trusted computer with the repository checked out, set the private <code>DATABASE_URL</code> environment variable and use the existing command-line importer:</p>
+<pre><code>npm run import:facilities -- /path/to/facilities.csv --dry-run
+npm run import:facilities -- /path/to/facilities.csv</code></pre>
+<p>CSV and JSON records are validated before import; matching source IDs update existing records. Keep connection strings out of GitHub and the website.</p>
+<a class="toplink" download="healthcare_facilities_template.csv" href="data:text/csv,source_name%2Csource_record_id%2Cname%2Ccategory%2Ccounty_fips%2Caddress%2Ccity%2Cstate%2Cpostal_code%2Cphone%2Cemail%2Cwebsite%2Clatitude%2Clongitude%2Csource_url%2Cmetadata%0A">Download blank CSV template</a>
+</section></main>
+</body></html>

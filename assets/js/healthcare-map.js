@@ -1,3 +1,4 @@
+import {listCountyFacilities,listCategories} from './neon-data.js';
 /* All facility records and category choices are loaded from /api/healthcare; none are bundled. */
 (() => {
 'use strict';
@@ -74,20 +75,16 @@ async function load({append=false}={}){
   if(!append){facilities=[];currentPage=0;clearList('Loading facilities…');render();}
   loadMore.disabled=true;
   try{
-    const params=new URLSearchParams({page:String(page),per_page:'100'});
-    if(selectedCategory)params.set('category',selectedCategory);
-    const response=await fetch('/api/healthcare/county/'+encodeURIComponent(selectedCounty)+'?'+params,{cache:'no-store'});
-    if(!response.ok)throw new Error('Facility lookup failed.');
-    const data=await response.json();
+    const data=await listCountyFacilities(selectedCounty,{category:selectedCategory,page,perPage:100});
     if(id!==requestId||!county||countyFips(county)!==selectedCounty||categorySelect.value!==selectedCategory)return;
     if(!Array.isArray(data.facilities))throw new Error('Unexpected facility response.');
     if(!append)list.replaceChildren();
     facilities.push(...data.facilities);for(const item of data.facilities)addFacility(item);
-    currentPage=page;total=Number(data.total||0);
-    $('subtitle').textContent=total?`Showing ${facilities.length} of ${total} facilities`:'No facility records imported for this county yet.';
+    currentPage=page;total=Number.isInteger(data.total)?data.total:null;
+    $('subtitle').textContent=facilities.length?(total===null?`Showing ${facilities.length} facilities`:`Showing ${facilities.length} of ${total} facilities`):'No facility records imported for this county yet.';
     loadMore.hidden=!data.has_more;render();
   }catch(e){
-    if(id===requestId){if(!append)clearList('Healthcare facility service unavailable. Check the database connection.');else $('subtitle').textContent='Could not load more facilities.';}
+    if(id===requestId){if(!append)clearList('Healthcare records could not be loaded from Neon. Please try again.');else $('subtitle').textContent='Could not load more facilities.';}
   }finally{if(id===requestId)loadMore.disabled=false;}
 }
 function choose(feature){
@@ -98,9 +95,7 @@ function choose(feature){
 function reset(){requestId++;state=null;county=null;facilities=[];currentPage=0;clearList('Select a state and county to view facilities stored in Neon.');render();}
 async function loadCategories(){
   try{
-    const response=await fetch('/api/healthcare/categories',{cache:'no-store'});
-    if(!response.ok)throw new Error('Category service unavailable');
-    const data=await response.json();
+    const data=await listCategories();
     if(!Array.isArray(data.categories))return;
     for(const entry of data.categories){
       if(typeof entry.category!=='string')continue;
