@@ -55,7 +55,7 @@ test('facility categories are loaded from the database view',async()=>{
   assert.equal(new URL(mock.calls[0].url).pathname.endsWith('/facility_category_counts'),true);
 });
 
-test('Render build creates only the allowlisted static files in dist',async()=>{
+test('Render build publishes only public viewer assets, without uploads or downloads',async()=>{
   const root=fileURLToPath(new URL('../',import.meta.url));
   execFileSync(process.execPath,['scripts/build-static.mjs'],{cwd:root,stdio:'pipe'});
   const list=async folder=>{
@@ -69,16 +69,24 @@ test('Render build creates only the allowlisted static files in dist',async()=>{
   };
   const files=(await list('')).sort();
   assert.deepEqual(files,[
-    'admin.html','assets/css/healthcare.css','assets/js/healthcare-map.js',
-    'assets/js/neon-data.js','assets/vendor/d3.min.js',
+    'assets/css/healthcare.css',
+    'assets/js/healthcare-map.js',
+    'assets/js/neon-data.js',
+    'assets/vendor/d3.min.js',
     'assets/vendor/topojson-client.min.js',
     'assets/vendor/us-atlas-counties-albers-10m.js',
-    'assets/vendor/us-atlas.LICENSE','index.html'
+    'assets/vendor/us-atlas.LICENSE',
+    'index.html'
   ].sort());
   const index=await readFile(join(root,'dist/index.html'),'utf8');
   assert.match(index,/type="module" src="\/assets\/js\/healthcare-map\.js"/);
-  const admin=await readFile(join(root,'dist/admin.html'),'utf8');
-  assert.doesNotMatch(admin,/id="adminToken"|\/api\/admin\/facilities\/import/);
+  assert.doesNotMatch(index,/href="\/admin(?:\.html)?"/i);
+  assert.doesNotMatch(index,/import facilities|download|export|upload|<input[^>]+type=['"]file/i);
+  await assert.rejects(readFile(join(root,'dist/admin.html')), {code:'ENOENT'});
+  await assert.rejects(readFile(join(root,'dist/assets/js/import-facilities.js')), {code:'ENOENT'});
+  const publicApi=await readFile(join(root,'dist/assets/js/neon-data.js'),'utf8');
+  assert.doesNotMatch(publicApi,/\bfetch\s*\([^)]*method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/);
+  assert.doesNotMatch(publicApi,/postgres(?:ql)?:\/\/|npg_|password=/);
   const server=await stat(join(root,'dist/assets/js/neon-data.js'));
   assert.ok(server.size>0);
 });
