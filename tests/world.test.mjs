@@ -1,0 +1,265 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import {join} from 'node:path';
+import {COUNTRIES, PALETTE, GEOBOUNDARIES_COMMIT} from '../assets/js/world-catalog.js';
+import {regionStates, countryStates, US_GREY} from '../assets/js/world-colors.js';
+import {buildFacilityQuery, listFacilities, listCategories, cleanSearch, regionCondition, resetTokenCache, PUBLIC_COLUMNS} from '../assets/js/world-data.js';
+import {WORLD_DATA_API_URL, WORLD_AUTH_URL, BUNDLED_GEO} from '../assets/js/world-config.js';
+import {orientForD3, prepareFeatures, assignParents, loadLevel, regionCodes, geoUrl} from '../assets/js/world-geo.js';
+import {loadVendorGlobals} from '../scripts/lib/vendor-globals.mjs';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const {d3, topojson} = loadVendorGlobals(root);
+const country = iso3 => COUNTRIES.find(c => c.iso3 === iso3);
+
+/* ---------------- Canada boundary pin ---------------- */
+test('Canada ADM1 is pinned to the original 26,022,306-byte geoBoundaries file and its SHA-256', () => {
+  const adm1 = country('CAN').levels[0];
+  assert.equal(adm1.level, 'ADM1');
+  assert.equal(adm1.file, 'geoBoundaries-CAN-ADM1_simplified.geojson');
+  assert.equal(adm1.bytes, 26022306);
+  assert.equal(adm1.sha256, '0c9e4fc56c8b9ce958960ffabd1556fbe7c3ec0deeea346a2b5b7dff05e35449');
+  assert.match(GEOBOUNDARIES_COMMIT, /^[0-9a-f]{40}$/, 'source pinned to an immutable full commit hash');
+  assert.ok(BUNDLED_GEO.some(([iso3, level]) => iso3 === 'CAN' && level === 'ADM1'), 'Canada is copied into the static site');
+});
+
+test('every subdivision source is pinned by size and SHA-256 and the hierarchy is ordered', () => {
+  for (const c of COUNTRIES) {
+    c.levels.forEach((level, i) => {
+      assert.equal(level.level, 'ADM' + (i + 1), c.iso3);
+      assert.match(level.sha256, /^[0-9a-f]{64}$/);
+      assert.ok(Number.isSafeInteger(level.bytes) && level.bytes > 0);
+      assert.equal(level.file, `geoBoundaries-${c.iso3}-${level.level}_simplified.geojson`);
+    });
+  }
+  assert.deepEqual(country('MEX').levels.map(l => l.level), ['ADM1', 'ADM2'], 'Mexico: state → municipality');
+  assert.deepEqual(country('DEU').levels.map(l => l.level), ['ADM1', 'ADM2', 'ADM3'], 'Germany: federal state → districts');
+  assert.ok(COUNTRIES.some(c => !c.redirect && !c.noDirectory && c.levels.length === 0), 'countries without subdivisions exist and are handled');
+});
+
+/* ---------------- Country colours ---------------- */
+test('opening colour progression: Canada, Mexico, Guatemala get blue shades 1, 2, 3', () => {
+  assert.equal(country('CAN').color, PALETTE.blue[0]);
+  assert.equal(country('MEX').color, PALETTE.blue[1]);
+  assert.equal(country('GTM').color, PALETTE.blue[2]);
+  assert.deepEqual([country('CAN'), country('MEX'), country('GTM')].map(c => c.colorSource), ['blue 1', 'blue 2', 'blue 3']);
+});
+
+test('United States is muted grey, uses no palette colour, and redirects to the U.S. directory', () => {
+  const us = country('USA');
+  assert.equal(us.color, null);
+  assert.equal(us.redirect, '/');
+  assert.deepEqual(us.levels, []);
+  assert.deepEqual(countryStates(us), US_GREY);
+});
+
+test('every directory country has its own colour and its own hover/selected/outline/glow states', () => {
+  const coloured = COUNTRIES.filter(c => c.iso3 !== 'USA');
+  const colours = coloured.map(c => c.color);
+  assert.equal(new Set(colours).size, colours.length, 'no two countries share a colour');
+  const families = new Set(Object.keys(PALETTE));
+  for (const c of coloured) {
+    assert.match(c.color, /^#[0-9A-F]{6}$/);
+    assert.ok(families.has(c.colorSource.split(' ')[0]), `${c.iso3} colour comes from a palette family`);
+    for (const key of ['fill', 'hover', 'selected', 'outline', 'glow', 'accent']) assert.match(c.states[key], /^#[0-9A-F]{6}$/, `${c.iso3}.${key}`);
+    assert.equal(c.states.fill, c.color);
+  }
+  const glows = new Set(coloured.map(c => c.states.glow));
+  assert.ok(glows.size > 200, 'glow is country-specific, not one universal colour');
+});
+
+test('country colour table is stable (deterministic snapshot)', () => {
+  const table = COUNTRIES.map(c => `${c.iso3}:${c.color}`).join(',');
+  const digest = createHash('sha256').update(table).digest('hex');
+  assert.equal(digest, '682e9db00149d803a6822f9d04c335bbebdab7614c925a5511f64c77fe6c2f5e', 'country colours changed — existing assignments must never be recalculated');
+});
+
+const oklab = value => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16) / 255).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+};
+test('countries sharing a land border remain visually distinguishable', async () => {
+  const atlas = JSON.parse(await readFile(join(root, 'assets/vendor/world-atlas-countries-50m.json'), 'utf8'));
+  const features = topojson.feature(atlas, atlas.objects.countries).features;
+  const neighbours = topojson.neighbors(atlas.objects.countries.geometries);
+  const owner = f => COUNTRIES.find(c => (f.id && c.numeric === f.id) || (!f.id && c.atlasNames.includes(f.properties.name)));
+  let pairs = 0;
+  features.forEach((f, i) => neighbours[i].forEach(j => {
+    const a = owner(f), b = owner(features[j]);
+    if (!a?.color || !b?.color || a === b) return;
+    if (['CAN', 'MEX', 'GTM'].includes(a.iso3) && ['CAN', 'MEX', 'GTM'].includes(b.iso3)) return; // owner-specified order
+    pairs++;
+    const d = Math.hypot(...oklab(a.color).map((v, k) => v - oklab(b.color)[k]));
+    assert.ok(d >= 0.075, `${a.iso3}/${b.iso3} too similar (${a.color} vs ${b.color})`);
+  }));
+  assert.ok(pairs > 500);
+});
+
+test('subdivision shades are deterministic and keep the country lighting identity', () => {
+  const can = country('CAN');
+  const a = regionStates(can, 3, 13), b = regionStates(can, 3, 13);
+  assert.deepEqual(a, b);
+  assert.equal(a.glow, can.states.glow);
+  const fills = new Set(Array.from({length: 13}, (_, i) => regionStates(can, i, 13).fill));
+  assert.ok(fills.size >= 10, 'regions get distinguishable shades');
+  assert.notEqual(regionStates(can, 0, 13).selected, regionStates(can, 0, 13).fill, 'selected region stands out');
+});
+
+/* ---------------- Neon Data API client ---------------- */
+test('international API endpoints are public HTTPS URLs, never database credentials', () => {
+  for (const url of [WORLD_DATA_API_URL, WORLD_AUTH_URL]) {
+    assert.match(url, /^https:\/\/ep-[a-z0-9-]+\.[a-z0-9.-]+\.neon\.tech\/neondb\//);
+    assert.doesNotMatch(url, /postgres(ql)?:\/\/|npg_|password=/);
+  }
+  assert.notEqual(WORLD_DATA_API_URL, 'https://ep-bitter-breeze-b4mo7ule.apirest.c-6.us-east-2.aws.neon.tech/neondb/rest/v1', 'separate from the U.S. database');
+});
+
+test('facility queries request only published public fields, scoped and paginated', () => {
+  const url = buildFacilityQuery({country: 'CAN', region: {name: 'British Columbia', codes: ['CA-BC', 'SHAPE1'], ancestors: []}, category: 'hospital', search: 'St. Paul', page: 3, perPage: 50});
+  const select = url.searchParams.get('select').split(',');
+  assert.deepEqual(select, PUBLIC_COLUMNS.split(','));
+  for (const hidden of ['search_document', 'latitude', 'longitude', 'metadata', 'published', 'source_record_id']) assert.ok(!select.includes(hidden), hidden);
+  assert.equal(url.pathname.endsWith('/facilities'), true);
+  assert.equal(url.searchParams.get('country_iso3'), 'eq.CAN');
+  assert.equal(url.searchParams.get('category'), 'eq.hospital');
+  assert.equal(url.searchParams.get('and'), '(or(admin_path.cs.{"CA-BC"},admin_path.cs.{"SHAPE1"},admin_names.cs.{"British Columbia"}),or(name.ilike."*St. Paul*",city.ilike."*St. Paul*"))');
+  assert.equal(url.searchParams.get('limit'), '51');
+  assert.equal(url.searchParams.get('offset'), '100');
+  assert.equal(url.searchParams.get('order'), 'name.asc,id.asc');
+});
+
+test('deeper regions match by code or by the full ancestor name chain', () => {
+  assert.equal(regionCondition({name: 'Aguascalientes', codes: ['MEX-ADM2-1'], ancestors: ['Aguascalientes']}),
+    'or(admin_path.cs.{"MEX-ADM2-1"},and(admin_names.cs.{"Aguascalientes"},admin_names.cs.{"Aguascalientes"}))');
+  assert.equal(regionCondition(null), null);
+});
+
+test('user search text cannot inject PostgREST operators', () => {
+  assert.equal(cleanSearch('a,b)(c"d\\e*f%g_h:i{j}'), 'a b c d e f g h i j');
+  assert.equal(cleanSearch('x'.repeat(200)).length, 80);
+  const url = buildFacilityQuery({country: 'MEX', search: 'clinic),or(name.not.is.null'});
+  assert.equal(url.searchParams.get('and'), '(or(name.ilike."*clinic or name.not.is.null*",city.ilike."*clinic or name.not.is.null*"))');
+});
+
+test('query builder validates country, page, and page size', () => {
+  assert.throws(() => buildFacilityQuery({country: 'ca'}), /country/);
+  assert.throws(() => buildFacilityQuery({country: 'CAN', page: 0}), /page/);
+  assert.throws(() => buildFacilityQuery({country: 'CAN', perPage: 101}), /page size/);
+});
+
+function fakeNeon(pages) {
+  const calls = [];
+  const jwt = (exp) => ['e30', Buffer.from(JSON.stringify({role: 'anonymous', exp})).toString('base64url'), 'sig'].join('.');
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({url: String(url), options});
+    if (String(url).endsWith('/token/anonymous')) return {ok: true, status: 200, json: async () => ({token: jwt(Math.floor(Date.now() / 1000) + 3600)})};
+    const next = pages.shift();
+    return {ok: next.status < 300, status: next.status, headers: {get: () => next.range}, json: async () => next.body};
+  };
+  return {fetchImpl, calls};
+}
+
+test('Data API reads use an anonymous session token and only GET requests', async () => {
+  resetTokenCache();
+  const rows = Array.from({length: 51}, (_, i) => ({id: i, name: 'FIXTURE facility ' + i}));
+  const neon = fakeNeon([{status: 200, range: '0-50/120', body: rows}]);
+  const out = await listFacilities({country: 'CAN', perPage: 50}, {fetchImpl: neon.fetchImpl});
+  assert.equal(out.facilities.length, 50);
+  assert.equal(out.total, 120);
+  assert.equal(out.has_more, true);
+  assert.equal(neon.calls[0].url, WORLD_AUTH_URL + '/token/anonymous');
+  assert.match(neon.calls[1].options.headers.Authorization, /^Bearer e30\./);
+  assert.ok(neon.calls.every(c => (c.options.method || 'GET') === 'GET'));
+  assert.ok(neon.calls.every(c => c.options.credentials === 'omit'));
+});
+
+test('expired sessions refresh once; pages past the end are empty, not errors', async () => {
+  resetTokenCache();
+  const neon = fakeNeon([{status: 401, range: '', body: {}}, {status: 416, range: '*/0', body: {}}]);
+  const out = await listFacilities({country: 'MEX', page: 4}, {fetchImpl: neon.fetchImpl});
+  assert.deepEqual(out, {facilities: [], page: 4, total: 0, has_more: false});
+  assert.equal(neon.calls.filter(c => c.url.endsWith('/token/anonymous')).length, 2);
+});
+
+test('empty database: zero facilities and zero categories are a normal state', async () => {
+  resetTokenCache();
+  const neon = fakeNeon([{status: 200, range: '*/0', body: []}, {status: 200, range: '*/0', body: []}]);
+  assert.deepEqual(await listFacilities({country: 'CAN'}, {fetchImpl: neon.fetchImpl}), {facilities: [], page: 1, total: 0, has_more: false});
+  assert.deepEqual(await listCategories('CAN', {fetchImpl: neon.fetchImpl}), []);
+  assert.match(neon.calls.at(-1).url, /\/category_counts\?select=category%2Ctotal&country_iso3=eq\.CAN/);
+});
+
+test('server errors surface as errors so the sidebar can offer a retry', async () => {
+  resetTokenCache();
+  const neon = fakeNeon([{status: 503, range: '', body: {}}]);
+  await assert.rejects(listFacilities({country: 'CAN'}, {fetchImpl: neon.fetchImpl}), /503/);
+});
+
+/* ---------------- Geometry loading (fixture geometry, clearly synthetic) ---------------- */
+const square = (x0, y0, x1, y1, ccw = true) => {
+  const ring = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+  return ccw ? ring : ring.slice().reverse();
+};
+test('RFC 7946 (counter-clockwise) rings are oriented for d3 in memory without changing vertices', () => {
+  const geometry = {type: 'Polygon', coordinates: [square(0, 0, 2, 2)]};
+  assert.ok(d3.geoArea(geometry) > 2 * Math.PI, 'd3 would read the raw ring as the whole globe minus a square');
+  const oriented = orientForD3(geometry, d3);
+  assert.ok(d3.geoArea(oriented) < 0.01);
+  assert.deepEqual(oriented.coordinates[0].slice().sort(), geometry.coordinates[0].slice().sort(), 'same vertex set');
+  assert.deepEqual(geometry.coordinates[0], square(0, 0, 2, 2), 'input is not mutated');
+});
+
+test('region codes prefer ISO 3166-2 then geoBoundaries shapeID', () => {
+  assert.deepEqual(regionCodes({shapeISO: 'CA-BC', shapeID: 'X1'}), ['CA-BC', 'X1']);
+  assert.deepEqual(regionCodes({shapeISO: '', shapeID: 'X2'}), ['X2']);
+});
+
+test('child regions are assigned to the parent region that contains them', () => {
+  const parents = prepareFeatures({type: 'FeatureCollection', features: [
+    {type: 'Feature', properties: {shapeName: 'FIXTURE West', shapeID: 'W'}, geometry: {type: 'Polygon', coordinates: [square(0, 0, 10, 10)]}},
+    {type: 'Feature', properties: {shapeName: 'FIXTURE East', shapeID: 'E'}, geometry: {type: 'Polygon', coordinates: [square(10, 0, 20, 10)]}}
+  ]}, 'ADM1', d3);
+  const children = prepareFeatures({type: 'FeatureCollection', features: [
+    {type: 'Feature', properties: {shapeName: 'w1', shapeID: 'w1'}, geometry: {type: 'Polygon', coordinates: [square(1, 1, 4, 4)]}},
+    {type: 'Feature', properties: {shapeName: 'e1', shapeID: 'e1'}, geometry: {type: 'Polygon', coordinates: [square(12, 2, 18, 8)]}},
+    {type: 'Feature', properties: {shapeName: 'e2 (L-shape)', shapeID: 'e2'}, geometry: {type: 'Polygon', coordinates: [[[10, 0], [20, 0], [20, 1], [11, 1], [11, 9], [10, 9], [10, 0]]]}}
+  ]}, 'ADM2', d3);
+  const map = assignParents(children, parents, d3);
+  assert.equal(map.get('ADM2:w1'), 'ADM1:W');
+  assert.equal(map.get('ADM2:e1'), 'ADM1:E');
+  assert.equal(map.get('ADM2:e2'), 'ADM1:E');
+});
+
+test('boundary files are verified against the pinned digest before use', async () => {
+  const body = Buffer.from(JSON.stringify({type: 'FeatureCollection', features: [{type: 'Feature', properties: {shapeName: 'FIXTURE region', shapeISO: 'XX-01', shapeID: 'F1'}, geometry: {type: 'Polygon', coordinates: [square(0, 0, 1, 1)]}}]}));
+  const source = {level: 'ADM1', file: 'fixture.geojson', bytes: body.length, sha256: createHash('sha256').update(body).digest('hex')};
+  const ok = async () => ({ok: true, status: 200, body: null, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.length)});
+  const features = await loadLevel('ZZZ', source, d3, {fetchImpl: ok});
+  assert.equal(features[0].name, 'FIXTURE region');
+  assert.deepEqual(features[0].codes, ['XX-01', 'F1']);
+  await assert.rejects(loadLevel('ZZY', {...source, sha256: source.sha256.replace(/^./, c => (c === '0' ? '1' : '0'))}, d3, {fetchImpl: ok}), /checksum/);
+  const other = Buffer.from(body.toString().replace('FIXTURE region', 'FIXTURE regioN'));
+  const tampered = Buffer.from(other); tampered[20] ^= 1; // same length, one flipped bit
+  const bad = async () => ({ok: true, status: 200, body: null, arrayBuffer: async () => tampered.buffer.slice(tampered.byteOffset, tampered.byteOffset + tampered.length)});
+  await assert.rejects(loadLevel('ZZX', {...source, sha256: createHash('sha256').update(other).digest('hex')}, d3, {fetchImpl: bad}), /checksum/);
+  const short = async () => ({ok: true, status: 200, body: null, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.length - 1)});
+  await assert.rejects(loadLevel('ZZW', {...source, sha256: createHash('sha256').update('x').digest('hex')}, d3, {fetchImpl: short}), /size/);
+});
+
+test('bundled geography is served locally; other countries from the pinned geoBoundaries commit', () => {
+  assert.equal(geoUrl('CAN', country('CAN').levels[0]), '/geo/gbOpen/CAN/ADM1/geoBoundaries-CAN-ADM1_simplified.geojson');
+  assert.equal(geoUrl('FRA', country('FRA').levels[0]), `https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/${GEOBOUNDARIES_COMMIT}/releaseData/gbOpen/FRA/ADM1/geoBoundaries-FRA-ADM1_simplified.geojson`);
+});
+
+/* ---------------- No pins ---------------- */
+test('the international map code draws regions only — no pins, markers, dots, or coordinates', async () => {
+  const source = await readFile(join(root, 'assets/js/world-map.js'), 'utf8');
+  assert.doesNotMatch(source, /append\(['"](circle|image|use|text)['"]\)/);
+  assert.doesNotMatch(source, /\b(latitude|longitude|marker|cluster)\b/i);
+  const css = await readFile(join(root, 'assets/css/world.css'), 'utf8');
+  assert.doesNotMatch(css, /\b(pin|marker)\b/i);
+});

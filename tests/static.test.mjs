@@ -4,7 +4,10 @@ import {execFileSync} from 'node:child_process';
 import {readFile, readdir, stat} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
+import {createHash} from 'node:crypto';
 import {listCountyFacilities,listCategories,DATA_API_URL} from '../assets/js/neon-data.js';
+import {BUNDLED_GEO} from '../assets/js/world-config.js';
+import {COUNTRIES} from '../assets/js/world-catalog.js';
 
 function fakeFetch(payload, range='0-0/1') {
   const calls=[];
@@ -68,6 +71,7 @@ test('Render build publishes only public viewer assets, without uploads or downl
     return files;
   };
   const files=(await list('')).sort();
+  const geo=BUNDLED_GEO.map(([iso3,level])=>`geo/gbOpen/${iso3}/${level}/geoBoundaries-${iso3}-${level}_simplified.geojson`);
   assert.deepEqual(files,[
     'assets/css/healthcare.css',
     'assets/js/healthcare-map.js',
@@ -76,7 +80,18 @@ test('Render build publishes only public viewer assets, without uploads or downl
     'assets/vendor/topojson-client.min.js',
     'assets/vendor/us-atlas-counties-albers-10m.js',
     'assets/vendor/us-atlas.LICENSE',
-    'index.html'
+    'index.html',
+    'world.html',
+    'assets/css/world.css',
+    'assets/js/world-map.js',
+    'assets/js/world-data.js',
+    'assets/js/world-geo.js',
+    'assets/js/world-colors.js',
+    'assets/js/world-catalog.js',
+    'assets/js/world-config.js',
+    'assets/vendor/world-atlas-countries-50m.json',
+    'assets/vendor/world-atlas.LICENSE',
+    ...geo
   ].sort());
   const index=await readFile(join(root,'dist/index.html'),'utf8');
   assert.match(index,/type="module" src="\/assets\/js\/healthcare-map\.js"/);
@@ -89,4 +104,35 @@ test('Render build publishes only public viewer assets, without uploads or downl
   assert.doesNotMatch(publicApi,/postgres(?:ql)?:\/\/|npg_|password=/);
   const server=await stat(join(root,'dist/assets/js/neon-data.js'));
   assert.ok(server.size>0);
+});
+
+test('U.S. directory gains only a navigation link to the international directory',async()=>{
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  const index=await readFile(join(root,'index.html'),'utf8');
+  assert.match(index,/<a class="toplink" href="\/world\.html">International directory<\/a>/);
+  assert.match(index,/src="\/assets\/js\/healthcare-map\.js"/);
+});
+
+test('published Canada boundary is the original 26,022,306-byte file with the pinned SHA-256',async()=>{
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  const bytes=await readFile(join(root,'dist/geo/gbOpen/CAN/ADM1/geoBoundaries-CAN-ADM1_simplified.geojson'));
+  assert.equal(bytes.length,26022306);
+  assert.equal(createHash('sha256').update(bytes).digest('hex'),'0c9e4fc56c8b9ce958960ffabd1556fbe7c3ec0deeea346a2b5b7dff05e35449');
+  for(const [iso3,level] of BUNDLED_GEO){
+    const source=COUNTRIES.find(c=>c.iso3===iso3).levels.find(l=>l.level===level);
+    const copy=await readFile(join(root,'dist/geo/gbOpen',iso3,level,source.file));
+    assert.equal(createHash('sha256').update(copy).digest('hex'),source.sha256,`${iso3} ${level}`);
+  }
+});
+
+test('international viewer is view-only: no uploads, exports, downloads, admin links, or secrets',async()=>{
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  const html=await readFile(join(root,'dist/world.html'),'utf8');
+  assert.doesNotMatch(html,/download|export|upload|import|admin|<input[^>]+type=['"]file|<form/i);
+  for(const file of ['world-map.js','world-data.js','world-geo.js','world-config.js','world-colors.js']){
+    const js=await readFile(join(root,'dist/assets/js',file),'utf8');
+    assert.doesNotMatch(js,/postgres(?:ql)?:\/\/|npg_|password\s*=|neondb_owner|api[_-]?key/i,file);
+    assert.doesNotMatch(js,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/,file);
+    assert.doesNotMatch(js,/\bdownload\b|createObjectURL|text\/csv/i,file);
+  }
 });
