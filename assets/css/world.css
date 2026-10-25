@@ -1,0 +1,141 @@
+/* International Directory — visual language recovered from the original contact map
+ * (data/county-employee-intelligence-map-TRUE-MAP.html and assets/css/map.css at 4a0d5f1) and the
+ * glowing floating drawer of the restored directory design (assets/css/directory.css at 4a0d5f1).
+ * Region colours are per-country (CSS variables set from world-catalog.js), never one global glow. */
+:root{
+  --bg:#050814;--panel:rgba(11,18,38,.72);--panel2:rgba(17,26,56,.54);--line:rgba(150,190,255,.22);
+  --text:#eaf2ff;--muted:#91a6c8;--hot:#7dd3fc;--violet:#a78bfa;--green:#34d399;--pink:#f0abfc;
+  --accent:#69dcff;--accent2:#b6ffdd;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(circle at 20% 10%,#0d1f45 0,#050814 45%) fixed,#050814;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Arial,sans-serif;overflow-x:hidden}
+a{color:var(--hot)}
+.orb{position:fixed;border-radius:999px;filter:blur(10px);opacity:.5;mix-blend-mode:screen;pointer-events:none;animation:float 18s ease-in-out infinite alternate;z-index:0}
+.orb.one{width:360px;height:360px;background:#38bdf8;left:-120px;top:80px}
+.orb.two{width:280px;height:280px;background:#a78bfa;right:60px;top:60px;animation-delay:-5s}
+.orb.three{width:220px;height:220px;background:#34d399;right:20%;bottom:40px;animation-delay:-9s}
+@keyframes float{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(70px,45px,0) scale(1.12)}}
+.cursorGlow{position:fixed;left:-400px;top:-400px;width:280px;height:280px;border-radius:999px;background:radial-gradient(circle,rgba(125,211,252,.16),transparent 65%);pointer-events:none;transform:translate(-50%,-50%);z-index:1}
+.app{position:relative;z-index:2;height:100vh;height:100dvh;min-height:640px;padding:18px 24px 24px;display:grid;grid-template-columns:minmax(320px,1fr) 400px;grid-template-rows:auto minmax(0,1fr);gap:16px}
+.glass{background:linear-gradient(145deg,rgba(17,29,61,.75),rgba(7,12,27,.55));border:1px solid var(--line);box-shadow:0 24px 80px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-radius:28px}
+.header{grid-column:1/-1;padding:16px 24px;display:flex;gap:18px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--hot);font-weight:800}
+h1{font-size:clamp(28px,3.2vw,44px);line-height:.95;margin:6px 0 0;letter-spacing:-.05em}
+.sub{color:var(--muted);max-width:760px;margin:8px 0 0;line-height:1.45;font-size:14px}
+.directorySwitch{display:inline-flex;gap:4px;margin-top:10px;padding:4px;border-radius:999px;background:rgba(4,8,20,.6);border:1px solid rgba(255,255,255,.1)}
+.directorySwitch a{padding:8px 14px;border-radius:999px;color:var(--muted);text-decoration:none;font-size:13px;font-weight:700;transition:.15s}
+.directorySwitch a:hover{color:#fff;box-shadow:0 0 22px rgba(125,211,252,.2)}
+.directorySwitch a[aria-current=page]{color:#fff;background:linear-gradient(135deg,rgba(125,211,252,.28),rgba(167,139,250,.28));box-shadow:0 0 0 1px rgba(125,211,252,.45)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.stat{min-width:120px;padding:12px 14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045);border-radius:18px}
+.stat b{font-size:22px;display:block}.stat span{font-size:11px;color:var(--muted)}
+
+.mapPanel{position:relative;overflow:hidden;padding:14px;display:flex;flex-direction:column;min-height:0}
+.mapToolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;min-height:44px}
+.toolbarSpacer{flex:1}
+button,input,select{font:inherit}
+input,select{background:rgba(4,8,20,.7);color:var(--text);border:1px solid rgba(148,163,184,.22);outline:none;border-radius:16px;padding:11px 13px;box-shadow:inset 0 1px rgba(255,255,255,.05)}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(105,220,255,.12),0 0 30px rgba(105,220,255,.08)}
+input:disabled,select:disabled{opacity:.5}
+select option{color:#111}
+button{border:1px solid rgba(125,211,252,.28);background:rgba(125,211,252,.08);color:var(--text);border-radius:16px;padding:10px 14px;cursor:pointer;transition:.15s}
+button:hover{box-shadow:0 0 0 1px rgba(125,211,252,.5),0 0 24px rgba(125,211,252,.2)}
+button:disabled{opacity:.6;cursor:progress}
+:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+.crumbs ol{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;align-items:center}
+.crumbs li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.crumbs li+li:before{content:"›";color:rgba(255,255,255,.35)}
+.crumbs button{padding:7px 12px;border-radius:999px;font-size:13px}
+.crumbs [aria-current=location]{color:#fff;font-weight:800;padding:7px 4px}
+
+.mapShell{position:relative;flex:1 1 auto;min-height:0;border-radius:24px;overflow:hidden;background:linear-gradient(180deg,rgba(4,9,22,.74),rgba(8,15,34,.52));border:1px solid rgba(255,255,255,.09)}
+#mapSvg{width:100%;height:100%;display:block;touch-action:none}
+.sphere{fill:url(#oceanGlow);stroke:rgba(125,211,252,.18);stroke-width:1;vector-effect:non-scaling-stroke}
+.graticule{fill:none;stroke:rgba(150,190,255,.07);stroke-width:.6;vector-effect:non-scaling-stroke;pointer-events:none}
+/* --k is the current zoom factor so glow radii stay constant on screen while zoomed */
+.country,.region{fill:var(--fill);stroke:rgba(210,230,255,.42);stroke-width:.6;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s,opacity .35s,filter .15s,stroke .15s;stroke-linejoin:round}
+.country:hover,.country.kb{fill:var(--hover);stroke:var(--outline);filter:drop-shadow(0 0 calc(10px / var(--k,1)) var(--glow))}
+.country.us{stroke:rgba(203,213,225,.55)}
+.country.dim{opacity:.26}
+.country.dim:hover{opacity:.55}
+.country.selected{fill:var(--selected);stroke:var(--outline);stroke-width:1.4;opacity:1;filter:drop-shadow(0 0 calc(14px / var(--k,1)) var(--glow))}
+.country.hidden{opacity:0;pointer-events:none}
+.region{stroke:rgba(230,240,255,.5);stroke-width:.7}
+.region:hover,.region.kb{fill:var(--hover);stroke:#fff;stroke-width:1.2;filter:drop-shadow(0 0 calc(8px / var(--k,1)) var(--glow))}
+.region.active{fill:var(--selected);stroke:#fff;stroke-width:1.8;filter:drop-shadow(0 0 calc(12px / var(--k,1)) var(--glow)) drop-shadow(0 0 calc(3px / var(--k,1)) #fff)}
+.region.dim{opacity:.38}
+.region.dim:hover{opacity:.7}
+.region.parent{pointer-events:none}
+.fadeIn{animation:mapFade .55s ease both}
+@keyframes mapFade{from{opacity:0}to{opacity:1}}
+.mapLabel{position:absolute;left:18px;bottom:16px;max-width:calc(100% - 36px);color:#dbeafe;background:rgba(4,8,20,.72);border:1px solid rgba(255,255,255,.12);padding:10px 14px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.28);font-size:13px}
+.geoProgress{position:absolute;left:18px;right:18px;top:14px;height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+.geoProgress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--hot),var(--violet));box-shadow:0 0 18px var(--hot);transition:width .2s}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;padding:30px;z-index:5;background:rgba(5,8,20,.35)}
+.loading[hidden]{display:none}
+.tooltip{position:fixed;z-index:50;pointer-events:none;background:rgba(4,8,20,.92);border:1px solid var(--tip,rgba(125,211,252,.35));padding:10px 12px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45),0 0 24px var(--tipGlow,transparent);color:#fff;display:none;max-width:280px;font-size:13px;line-height:1.4}
+.tooltip small{color:var(--muted)}
+.attribution{margin:8px 4px 0;font-size:11px;color:var(--muted)}
+
+.sidePanel{padding:18px;display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
+.sideTitle{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+h2{margin:0;font-size:26px;letter-spacing:-.03em}
+.muted{color:var(--muted);font-size:13px;line-height:1.45}
+.modeBadge{display:inline-flex;white-space:nowrap;gap:8px;align-items:center;padding:8px 12px;border-radius:999px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:#bbf7d0;font-size:12px;font-weight:800}
+.selectedCard{position:relative;padding:14px 16px;border-radius:22px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);overflow:hidden;animation:mapFade .25s ease both}
+.selectedCard:before{content:"";position:absolute;inset:-1px;border-radius:22px;padding:1px;background:linear-gradient(135deg,var(--cardGlow,rgba(125,211,252,.8)),transparent 45%,rgba(167,139,250,.7));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:.75;pointer-events:none}
+.selectedCard .regionName{font-size:20px;font-weight:900;margin-bottom:4px;display:flex;gap:10px;align-items:center}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:5px;flex:0 0 auto;background:var(--fill);border:1px solid rgba(255,255,255,.45);box-shadow:0 0 12px var(--glow)}
+.selectedCard .count{font-size:13px;color:#dbeafe}
+.selectedCard .note{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+.selectedCard button{margin-top:8px;font-size:13px;padding:8px 12px}
+.regionSection{display:flex;flex-direction:column;gap:8px;min-height:0}
+.regionHead{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.regionHead input{flex:0 1 190px;padding:8px 12px;border-radius:12px;font-size:13px}
+.regionGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:124px;overflow:auto;padding:2px 4px 2px 2px}
+.chip{display:flex;gap:8px;align-items:center;text-align:left;padding:8px 10px;border-radius:14px;font-size:12px;background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.035));border:1px solid rgba(184,229,255,.16);color:#e2f4ff;min-width:0}
+.chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip:hover,.chip.sel{border-color:var(--glow,var(--accent));box-shadow:0 0 0 1px var(--glow,rgba(105,220,255,.35)),0 0 24px color-mix(in srgb,var(--glow,#69dcff) 35%,transparent)}
+.facilitySection{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}
+.facilityTools{display:grid;grid-template-columns:1fr 150px;gap:8px}
+.facilityTools input,.facilityTools select{min-width:0;padding:9px 12px;border-radius:14px;font-size:13px}
+.facilityList{overflow:auto;display:flex;flex-direction:column;gap:10px;padding:2px 4px 2px 2px;flex:1;min-height:150px}
+.facilityList>*{flex:0 0 auto}
+.facility{position:relative;padding:13px 14px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.09);cursor:pointer;transition:.2s;overflow:hidden;animation:mapFade .3s ease both}
+.facility:before{content:"";position:absolute;inset:-1px;border-radius:18px;padding:1px;background:linear-gradient(120deg,transparent,var(--glow,var(--accent)),var(--violet),transparent);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:.2s;pointer-events:none}
+.facility:hover,.facility:focus-visible{transform:translateY(-2px);box-shadow:0 18px 50px rgba(0,0,0,.3),0 0 26px color-mix(in srgb,var(--glow,#69dcff) 22%,transparent)}
+.facility:hover:before,.facility:focus-visible:before{opacity:1}
+.facility h3{margin:0 0 6px;font-size:15px;letter-spacing:-.01em}
+.badge{display:inline-flex;padding:4px 9px;border-radius:999px;background:rgba(105,220,255,.12);border:1px solid rgba(105,220,255,.28);color:#c9f5ff;font-size:11px;margin-bottom:6px;text-transform:capitalize}
+.facility .line{font-size:12.5px;line-height:1.55;color:#cfdded;overflow-wrap:anywhere}
+.facility a{color:var(--hot);text-decoration:none}.facility a:hover{text-decoration:underline}
+.facility .src{display:block;margin-top:6px;font-size:11px;color:var(--muted)}
+.empty{padding:26px 18px;border:1px dashed var(--line);border-radius:20px;color:var(--muted);text-align:center;font-size:13px;line-height:1.5}
+.empty button{margin-top:10px}
+.skeleton{height:86px;border-radius:18px;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.09),rgba(255,255,255,.04));background-size:200% 100%;animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+#loadMore{width:100%}
+.listLabel{min-height:19px}
+
+.drawer{position:fixed;right:18px;bottom:18px;max-width:455px;width:calc(100vw - 36px);max-height:calc(100vh - 36px);overflow:auto;background:linear-gradient(180deg,rgba(15,34,58,.98),rgba(4,12,25,.97));border:1px solid var(--drawerGlow,rgba(105,220,255,.42));box-shadow:0 25px 110px rgba(0,0,0,.55),0 0 62px color-mix(in srgb,var(--drawerGlow,#69dcff) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);border-radius:32px;padding:19px;z-index:40;animation:drawerIn .28s ease both}
+.drawer[hidden]{display:none}
+@keyframes drawerIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+.drawer h3{margin:0 0 8px;font-size:23px;padding-right:30px}
+.drawer .close{position:absolute;top:10px;right:12px;background:transparent;color:var(--text);border:0;font-size:26px;cursor:pointer;padding:4px 10px}
+.drawer .close:hover{box-shadow:none;color:#fff}
+.field{padding:9px 0;border-top:1px solid rgba(255,255,255,.08)}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.11em;color:var(--hot);font-weight:800;margin-bottom:3px}
+.field div{font-weight:650;overflow-wrap:anywhere}
+.field a{color:var(--accent)}
+
+@media(max-width:1100px){.app{grid-template-columns:minmax(0,1fr) 340px}}
+@media(max-width:860px){
+  .app{display:flex;flex-direction:column;padding:10px;gap:12px;height:auto;min-height:100vh}
+  .header{padding:16px 18px}.stats{justify-content:flex-start}.stat{min-width:0;flex:1}
+  .mapPanel{height:62vh;min-height:380px;padding:10px}
+  .sidePanel{position:static;height:auto;min-height:0;overflow:visible}
+  .facilityList{max-height:65vh}
+  .drawer{right:8px;left:8px;bottom:8px;width:auto;max-height:70vh}
+}
+@media(prefers-reduced-motion:reduce){.orb{animation:none}*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
