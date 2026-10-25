@@ -30,11 +30,6 @@
     </header>
 
     <main class="mapPanel glass" aria-label="International map">
-      <div class="mapToolbar" id="mapToolbar" hidden>
-        <nav class="crumbs" aria-label="Breadcrumb"><ol id="breadcrumbs"></ol></nav>
-        <span class="toolbarSpacer"></span>
-        <button id="backBtn" type="button" hidden>← Back</button>
-      </div>
       <div class="mapShell" id="mapShell">
         <svg id="mapSvg" role="group" aria-label="World map. Select a country, then a region."></svg>
         <div class="mapLabel" id="mapLabel" aria-live="polite">Loading world boundaries…</div>
@@ -45,7 +40,7 @@
 
     <aside class="sidePanel glass" aria-labelledby="panelTitle">
       <div class="sideTitle">
-        <div><h2 id="panelTitle">World</h2><div class="muted" id="panelMeta">Choose a country to begin.</div></div>
+        <div><h2 id="panelTitle">World</h2><div class="muted" id="panelMeta" hidden></div></div>
         <span class="modeBadge" id="modeBadge">World map</span>
       </div>
       <section class="selectedCard" id="selectedCard" aria-live="polite"></section>

@@ -369,38 +369,13 @@ function updatePanel() {
   const colors = country ? (current ? regionStatesFor(chain.length - 1, current) : countryStates(country)) : null;
   $('panelTitle').textContent = current ? current.name : country ? country.name : 'World';
   $('modeBadge').textContent = current ? levelLabel(country, chain.length - 1) : country ? 'Country' : 'World map';
-  $('backBtn').hidden = !country;
-  $('mapToolbar').hidden = !country; // breadcrumbs/back only once a country is selected
-  $('backBtn').textContent = chain.length > 1 ? `← ${chain.at(-2).name}` : chain.length === 1 ? `← ${country.name}` : '← World';
   document.documentElement.style.setProperty('--glow', colors?.glow || '#69dcff');
   document.documentElement.style.setProperty('--cardGlow', colors?.glow || 'rgba(125,211,252,.8)');
-
-  const crumbs = $('breadcrumbs');
-  crumbs.replaceChildren();
-  const items = [['World', () => chooseWorld()]];
-  if (country) items.push([country.name, () => chooseCountry(country)]);
-  chain.forEach((f, i) => items.push([f.name, () => chooseRegion(i, f)]));
-  items.forEach(([label, action], i) => {
-    const li = document.createElement('li');
-    if (i === items.length - 1) {
-      const span = document.createElement('span');
-      span.setAttribute('aria-current', 'location');
-      span.textContent = label;
-      li.appendChild(span);
-    } else {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = label;
-      button.addEventListener('click', action);
-      li.appendChild(button);
-    }
-    crumbs.appendChild(li);
-  });
 
   let meta, label;
   const nextIndex = chain.length;
   if (!country) {
-    meta = `${plural(directoryCountries.length, 'country')} and territories. The United States opens its own directory.`;
+    meta = '';
     label = 'World map · select a country';
   } else if (state.geoLoading) {
     meta = `Loading ${levelLabel(country, nextIndex).toLowerCase()} boundaries…`;
@@ -409,16 +384,19 @@ function updatePanel() {
     meta = 'Boundary data could not be loaded. Facility records are still listed below.';
     label = `${current ? current.name : country.name} · boundaries unavailable`;
   } else if (country.levels[nextIndex]) {
-    meta = `Select a ${levelLabel(country, nextIndex).toLowerCase()} on the map or in the list.`;
+    meta = '';
     label = `${current ? current.name : country.name} · ${plural(regionsAt(nextIndex)?.length || 0, levelLabel(country, nextIndex).toLowerCase())}`;
   } else if (!country.levels.length) {
     meta = 'geoBoundaries publishes no subdivision boundaries for this country; showing national records.';
     label = `${country.name} · national view`;
   } else {
-    meta = 'Most detailed boundary level available for this area.';
+    meta = '';
     label = `${current.name} · ${levelLabel(country, chain.length - 1)}`;
   }
+  // Only loading, error and no-subdivision notes are shown; no instructional text.
   $('panelMeta').textContent = meta;
+  $('panelMeta').hidden = !meta;
+  if (country && !state.geoLoading) label += ' · click the sea or press Esc to go back';
   setMapLabel(label);
 
   const card = $('selectedCard');
@@ -693,7 +671,10 @@ let searchTimer = 0;
 $('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => reloadFacilities(), 300); });
 $('category').addEventListener('change', () => reloadFacilities());
 $('loadMore').addEventListener('click', () => reloadFacilities({append: true}));
-$('backBtn').addEventListener('click', goUp);
+// With no breadcrumb bar, clicking empty sea (not a country or region) goes up one level.
+svg.on('click.up', event => {
+  if (state.country && !event.target.closest?.('path.country:not(.hidden), path.region')) goUp();
+});
 $('regionFilter').addEventListener('input', renderRegionList);
 $('drawerClose').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', e => {

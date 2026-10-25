@@ -210,8 +210,20 @@ test('UX-07 Mexico loads states, then municipalities inside the selected state (
   await page.waitForTimeout(900);
   await page.screenshot({path: join(shots, '06-mexico-jalisco-municipalities.png')});
   await page.locator('#regionList .chip').first().click();
-  await page.waitForFunction(() => document.querySelectorAll('#breadcrumbs li').length === 4);
-  assert.match(await page.textContent('#panelMeta'), /Most detailed boundary level/);
+  await page.waitForFunction(() => document.getElementById('modeBadge').textContent === 'Municipality');
+  assert.equal(await page.isHidden('#panelMeta'), true, 'no instructional text under the title');
+  // No breadcrumb bar: clicking empty sea goes back up one level (municipality → Jalisco).
+  const box = await page.locator('#mapShell').boundingBox();
+  const sea = await page.evaluate(({x, y, w, h}) => {
+    for (let fy = .05; fy < .95; fy += .05) for (let fx = .05; fx < .95; fx += .05) {
+      const t = document.elementFromPoint(x + w * fx, y + h * fy);
+      if (t && !t.closest('path.country:not(.hidden), path.region, .mapLabel')) return [x + w * fx, y + h * fy];
+    }
+    return null;
+  }, {x: box.x, y: box.y, w: box.width, h: box.height});
+  assert.ok(sea, 'found empty sea to click');
+  await page.mouse.click(sea[0], sea[1]);
+  await page.waitForFunction(() => document.getElementById('panelTitle').textContent === 'Jalisco');
   assert.equal(await pinCount(page), 0);
   assert.deepEqual(errors, []);
   await context.close();
@@ -230,7 +242,7 @@ test('COLOR-04 Antarctica is ice-white; colours stay correct after hovering then
   assert.equal(ata.cls, 'country selected');
   assert.equal(ata.fill, 'rgb(255, 255, 255)', 'selected Antarctica is white');
   assert.match(ata.filter, /drop-shadow\(rgb\(159, 212, 255\)/, 'cool blue selection glow');
-  await page.locator('#breadcrumbs button', {hasText: 'World'}).click();
+  await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.getElementById('panelTitle').textContent === 'World');
   await page.waitForTimeout(1300);
   const rendered = await page.$$eval('path.country', els => els.map(e => [e.dataset.iso3, getComputedStyle(e).getPropertyValue('--fill').trim()]));
@@ -248,12 +260,14 @@ test('COLOR-03 subdivisions are distinguishable shades; level names read correct
   const fills = await page.$$eval('g.level-0 path.region', els => els.map(e => getComputedStyle(e).fill));
   assert.equal(fills.length, 16);
   assert.equal(new Set(fills).size, 16, `German federal states use distinct shades (${new Set(fills).size})`);
-  await page.locator('#breadcrumbs button', {hasText: 'World'}).click();
+  await page.locator('#mapShell').focus().catch(() => {});
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.getElementById('panelTitle').textContent === 'World');
   await selectCountryByChip(page, 'Japan');
   await page.waitForSelector('g.level-0 path.region', {timeout: 60000});
-  await page.waitForFunction(() => /prefecture/i.test(document.getElementById('panelMeta').textContent));
-  assert.match(await page.textContent('#panelMeta'), /Select a prefecture on the map/);
-  assert.match(await page.textContent('#mapLabel'), /47 prefectures$/);
+  await page.waitForFunction(() => /47 prefectures/.test(document.getElementById('mapLabel').textContent));
+  assert.match(await page.textContent('#mapLabel'), /^Japan · 47 prefectures · /);
+  assert.match(await page.textContent('#regionLabel'), /^Prefecture \(47\)/);
   assert.deepEqual(errors, []);
   await context.close();
 });
