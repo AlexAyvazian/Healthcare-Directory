@@ -95,13 +95,19 @@ disk and on the wire is untouched.
   purple #6 samples as `#81298F` rather than the dossier's watermark-affected `#893F97`. **The
   screenshot remains the authority. These values are a careful sampling, not a claim of exact
   reproduction.**
-* Assignment is explicit and stored per ISO code in `world-catalog.js`. Nothing is random or assigned
-  at runtime. Canada, Mexico and Guatemala get blue 1, 2 and 3 as requested. Assignment then walks
-  geographically (nearest unvisited country) through the palette in row order. A swatch is skipped
-  while it is too close (OKLab distance < 0.075) to an already-coloured neighbour.
-* The 81 source swatches are not enough for 239 countries, so further shades are derived *inside each
-  family* (midpoints, then quarter points between neighbouring swatches). Each entry records its
-  origin, e.g. `"colorSource":"orange 5.25 (derived)"`.
+* Colours follow an explicit **single geographic itinerary** in `scripts/world-country-order.mjs`,
+  beginning Canada → Mexico → Guatemala → Belize → Honduras → El Salvador → Nicaragua → Costa Rica →
+  Panama → Colombia → Ecuador → Peru, then South America, the Caribbean, Europe, Africa, Asia and
+  Oceania. That route is fixed, reviewed in source, and independently regression-tested.
+* **The first nine countries use blue shades 1–9 in order, with no skipping.** Additional blue
+  shades are derived and used immediately afterward as one continuous geographic blue block. Only
+  then does teal start, followed by green, yellow, orange, red, pink, purple and neutral. Each family
+  appears exactly once as a continuous geographic block. Unique intermediate shades accommodate all
+  239 country/territory entries. None of the blue shades reappear later in a different continent.
+* A country's colour is assigned by its position in the itinerary. Color-distance optimization,
+  previous incorrect assignments, and nearest-centroid heuristics never override this order.
+  All hover/selected/outline/glow states are derived from each country's own assigned color.
+  Tests reject out-of-order shade assignments or scattered color families.
 * Each country has `fill`, `hover`, `selected`, `outline`, `glow` and `accent` states. Its subdivisions
   shade from the country colour toward its family's `accent`, keeping a shared lighting identity. A
   selected region turns bright and glows in the country's glow colour.

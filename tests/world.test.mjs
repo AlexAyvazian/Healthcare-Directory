@@ -5,7 +5,8 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {COUNTRIES, PALETTE, GEOBOUNDARIES_COMMIT} from '../assets/js/world-catalog.js';
-import {regionStates, countryStates, US_GREY} from '../assets/js/world-colors.js';
+import {regionStates, countryStates, US_GREY, mix} from '../assets/js/world-colors.js';
+import {COUNTRY_COLOR_ORDER, COUNTRY_COLOR_GROUPS} from '../scripts/world-country-order.mjs';
 import {buildFacilityQuery, listFacilities, listCategories, cleanSearch, regionCondition, resetTokenCache, PUBLIC_COLUMNS} from '../assets/js/world-data.js';
 import {WORLD_DATA_API_URL, WORLD_AUTH_URL, BUNDLED_GEO} from '../assets/js/world-config.js';
 import {orientForD3, prepareFeatures, assignParents, loadLevel, regionCodes, geoUrl} from '../assets/js/world-geo.js';
@@ -71,32 +72,36 @@ test('every directory country has its own colour and its own hover/selected/outl
   assert.ok(glows.size > 200, 'glow is country-specific, not one universal colour');
 });
 
-test('country colour table is stable (deterministic snapshot)', () => {
-  const table = COUNTRIES.map(c => `${c.iso3}:${c.color}`).join(',');
-  const digest = createHash('sha256').update(table).digest('hex');
-  assert.equal(digest, '682e9db00149d803a6822f9d04c335bbebdab7614c925a5511f64c77fe6c2f5e', 'country colours changed — existing assignments must never be recalculated');
+test('geographic palette itinerary contains every non-USA country once in the intended order', () => {
+  const iso = COUNTRIES.filter(c => c.iso3 !== 'USA').map(c => c.iso3).sort();
+  assert.equal(COUNTRY_COLOR_ORDER.length, iso.length);
+  assert.deepEqual([...COUNTRY_COLOR_ORDER].sort(), iso);
+  assert.deepEqual(COUNTRY_COLOR_GROUPS[0], ['CAN','MEX','GTM','BLZ','HND','SLV','NIC','CRI','PAN']);
+  assert.deepEqual(COUNTRY_COLOR_ORDER.slice(9,12), ['COL','ECU','PER']);
 });
 
-const oklab = value => {
-  const [r, g, b] = [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16) / 255).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
-};
-test('countries sharing a land border remain visually distinguishable', async () => {
-  const atlas = JSON.parse(await readFile(join(root, 'assets/vendor/world-atlas-countries-50m.json'), 'utf8'));
-  const features = topojson.feature(atlas, atlas.objects.countries).features;
-  const neighbours = topojson.neighbors(atlas.objects.countries.geometries);
-  const owner = f => COUNTRIES.find(c => (f.id && c.numeric === f.id) || (!f.id && c.atlasNames.includes(f.properties.name)));
-  let pairs = 0;
-  features.forEach((f, i) => neighbours[i].forEach(j => {
-    const a = owner(f), b = owner(features[j]);
-    if (!a?.color || !b?.color || a === b) return;
-    if (['CAN', 'MEX', 'GTM'].includes(a.iso3) && ['CAN', 'MEX', 'GTM'].includes(b.iso3)) return; // owner-specified order
-    pairs++;
-    const d = Math.hypot(...oklab(a.color).map((v, k) => v - oklab(b.color)[k]));
-    assert.ok(d >= 0.075, `${a.iso3}/${b.iso3} too similar (${a.color} vs ${b.color})`);
-  }));
-  assert.ok(pairs > 500);
+test('palette is assigned sequentially without skipping shades or scattering colour families', () => {
+  const expected = [], seen = new Set();
+  for (const [family, row] of Object.entries(PALETTE)) {
+    const group = [];
+    row.forEach((color, i) => group.push({color, source: `${family} ${i + 1}`, family}));
+    for (const [t, count] of [[0.5, 8], [0.25, 8], [0.75, 2]]) {
+      for (let i = 0; i < count; i++) group.push({color: mix(row[i], row[i + 1], t),
+        source: t === 0.5 ? `${family} ${i + 1}½ (derived)` : `${family} ${i + 1 + t} (derived)`, family});
+    }
+    for (const entry of group) if (!seen.has(entry.color)) { seen.add(entry.color); expected.push(entry); }
+  }
+  const country = new Map(COUNTRIES.map(c => [c.iso3, c]));
+  COUNTRY_COLOR_ORDER.forEach((iso, i) => {
+    assert.equal(country.get(iso).color, expected[i].color, `${iso}: unexpected colour at palette position ${i + 1}`);
+    assert.equal(country.get(iso).colorSource, expected[i].source, `${iso}: skipped or reordered palette shade`);
+  });
+  assert.deepEqual(COUNTRY_COLOR_ORDER.slice(0,9).map(iso => country.get(iso).colorSource),
+    ['blue 1','blue 2','blue 3','blue 4','blue 5','blue 6','blue 7','blue 8','blue 9']);
+  const runs = COUNTRY_COLOR_ORDER.map(iso => country.get(iso).colorSource.split(' ')[0])
+    .reduce((out, family) => {if (out.at(-1)?.family === family) out.at(-1).count++; else out.push({family,count:1});return out;}, []);
+  assert.deepEqual(runs.map(x => x.family), Object.keys(PALETTE), 'every palette family used exactly once and in order');
+  assert.ok(runs.every(x => x.count >= 20), 'each colour family forms one extended geographical block');
 });
 
 test('subdivision shades are deterministic and keep the country lighting identity', () => {

@@ -12,16 +12,17 @@
  *   --iso <file>           i18n-iso-countries@7 codes.json ([alpha2, alpha3, numeric] rows)
  *   --names <file>         i18n-iso-countries@7 langs/en.json
  *
- * Colour assignments already present in the existing catalog are NEVER recalculated:
- * new countries only receive unused swatches from the same ordered palette sequence.
+ * Country colours follow one fixed geographical itinerary, with no colour skipping and
+ * no freezing of the previous incorrect, scattered assignments.
  */
 import {readFileSync, writeFileSync, existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadVendorGlobals} from './lib/vendor-globals.mjs';
+import {COUNTRY_COLOR_ORDER} from './world-country-order.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const {d3, topojson} = loadVendorGlobals(root);
+const {topojson} = loadVendorGlobals(root);
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, all) => {
   if (value.startsWith('--')) pairs.push([value.slice(2), all[index + 1]]);
@@ -46,8 +47,7 @@ const PALETTE = {
   purple:  ['#F9DAFA','#DC64D4','#DC68D1','#AB41A6','#8B3398','#81298F','#73228B','#570D67','#540C69'],
   neutral: ['#DDD6DA','#856B81','#6B5C6E','#4B4754','#343A43','#260B1A','#150B09','#0C0603','#0F0601']
 };
-/* The user's explicit opening progression. */
-const FIXED_ORDER = ['CAN', 'MEX', 'GTM'];
+
 /* Shapes in world-atlas without an ISO 3166-1 numeric id (Natural Earth ADM0_A3 codes). */
 const NON_ISO = {
   'Kosovo': {iso3: 'XKX', iso2: 'XK', name: 'Kosovo'},
@@ -60,25 +60,23 @@ const NON_ISO = {
 const hex = value => [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16));
 const toHex = rgb => '#' + rgb.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
 const mix = (a, b, t) => toHex(hex(a).map((v, i) => v + (hex(b)[i] - v) * t));
-function oklab(value) {
-  const [r, g, b] = hex(value).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
-}
-const distance = (a, b) => Math.hypot(...oklab(a).map((v, i) => v - oklab(b)[i]));
-
-/* Ordered colour sequence: the 81 source swatches row by row, then derived in-family shades
- * (midpoints between neighbouring swatches, then quarter points) when more are needed. */
+/* Each of nine palette families appears once in one continuous group: first its nine
+ * source swatches, then nearby distinct derived shades, before moving on. This
+ * prevents blue country fills from reappearing at random in Europe or elsewhere. */
 function paletteSequence() {
-  const rows = Object.entries(PALETTE);
-  const out = [];
-  for (const [family, row] of rows) row.forEach((color, i) => out.push({color, family, source: `${family} ${i + 1}`}));
-  for (const [family, row] of rows) for (let i = 0; i < 8; i++) out.push({color: mix(row[i], row[i + 1], 0.5), family, source: `${family} ${i + 1}½ (derived)`});
-  for (const t of [0.25, 0.75]) for (const [family, row] of rows) for (let i = 0; i < 8; i++) out.push({color: mix(row[i], row[i + 1], t), family, source: `${family} ${i + 1 + t} (derived)`});
-  const seen = new Set();
-  return out.filter(entry => !seen.has(entry.color) && seen.add(entry.color));
+  const out = [], seen = new Set();
+  for (const [family, row] of Object.entries(PALETTE)) {
+    const group = [];
+    row.forEach((color, i) => group.push({color, family, source: `${family} ${i + 1}`}));
+    for (const [t, count] of [[0.5, 8], [0.25, 8], [0.75, 2]]) {
+      for (let i = 0; i < count; i++) group.push({
+        color: mix(row[i], row[i + 1], t), family,
+        source: t === 0.5 ? `${family} ${i + 1}½ (derived)` : `${family} ${i + 1 + t} (derived)`
+      });
+    }
+    for (const entry of group) if (!seen.has(entry.color)) { out.push(entry); seen.add(entry.color); }
+  }
+  return out;
 }
 
 function luminance(value) {
@@ -136,7 +134,6 @@ const isoRows = JSON.parse(readFileSync(args.iso, 'utf8'));
 const byNumeric = new Map(isoRows.map(([a2, a3, num]) => [num, {iso2: a2, iso3: a3}]));
 const englishNames = JSON.parse(readFileSync(args.names, 'utf8')).countries;
 const features = topojson.feature(atlas, atlas.objects.countries).features;
-const neighbors = topojson.neighbors(atlas.objects.countries.geometries);
 
 const countries = new Map();
 features.forEach((feature, index) => {
@@ -200,51 +197,19 @@ for (const entry of countries.values()) {
   }
 }
 
-/* Deterministic colour assignment, preserving any colours already in the committed catalog. */
-const catalogPath = join(root, 'assets/js/world-catalog.js');
-const existing = new Map();
-if (existsSync(catalogPath)) {
-  const match = /export const COUNTRIES = (\[[\s\S]*?\n\]);\n/.exec(readFileSync(catalogPath, 'utf8'));
-  if (match) for (const c of JSON.parse(match[1])) existing.set(c.iso3, {color: c.color, source: c.colorSource});
+/* Geographic route is fixed and documented; colour source order is never overridden
+ * by contrast optimization or an unreviewed nearest-country traversal. */
+const allowed = new Set([...countries.keys()].filter(iso3 => iso3 !== 'USA'));
+if (COUNTRY_COLOR_ORDER.length !== allowed.size || new Set(COUNTRY_COLOR_ORDER).size !== allowed.size ||
+    COUNTRY_COLOR_ORDER.some(iso3 => !allowed.has(iso3))) {
+  throw new Error('Geographic palette order must include each non-USA country exactly once.');
 }
 const sequence = paletteSequence();
-const used = new Set([...existing.values()].map(v => v.color));
-const pool = sequence.filter(entry => !used.has(entry.color));
-const assigned = new Map(existing);
-const centroid = new Map([...countries.values()].map(c => {
-  const largest = c.indexes.map(i => features[i]).sort((a, b) => d3.geoArea(b) - d3.geoArea(a))[0];
-  return [c.iso3, d3.geoCentroid(largest)];
+if (sequence.length < COUNTRY_COLOR_ORDER.length) throw new Error('Insufficient distinct ordered shades.');
+const assigned = new Map(COUNTRY_COLOR_ORDER.map((iso3, index) => {
+  const entry = sequence[index];
+  return [iso3, {color: entry.color, source: entry.source}];
 }));
-const neighborIso = iso3 => {
-  const out = new Set();
-  for (const i of countries.get(iso3).indexes) for (const n of neighbors[i]) {
-    const other = [...countries.values()].find(c => c.indexes.includes(n));
-    if (other && other.iso3 !== iso3) out.add(other.iso3);
-  }
-  // Nearby islands/coasts count as visual neighbours too.
-  for (const other of countries.keys()) if (other !== iso3 && d3.geoDistance(centroid.get(iso3), centroid.get(other)) < 0.09) out.add(other);
-  return out;
-};
-const remaining = new Set([...countries.keys()].filter(iso3 => iso3 !== 'USA' && !assigned.has(iso3)));
-const order = FIXED_ORDER.filter(iso3 => remaining.has(iso3));
-let current = order.at(-1) || 'GTM';
-order.forEach(iso3 => remaining.delete(iso3));
-while (remaining.size) { // geographic walk: always continue to the nearest unvisited country
-  let best = null, bestDistance = Infinity;
-  for (const iso3 of [...remaining].sort()) {
-    const d = d3.geoDistance(centroid.get(current), centroid.get(iso3));
-    if (d < bestDistance) { best = iso3; bestDistance = d; }
-  }
-  order.push(best); remaining.delete(best); current = best;
-}
-for (const iso3 of order) {
-  const fixed = FIXED_ORDER.includes(iso3);
-  const near = [...neighborIso(iso3)].map(n => assigned.get(n)?.color).filter(Boolean);
-  let pick = fixed ? 0 : pool.findIndex(entry => near.every(color => distance(color, entry.color) >= 0.075));
-  if (pick < 0) pick = 0;
-  const [entry] = pool.splice(pick, 1);
-  assigned.set(iso3, {color: entry.color, source: entry.source});
-}
 
 const ordered = [...countries.values()].sort((a, b) => a.iso3.localeCompare(b.iso3)).map(c => {
   const color = c.iso3 === 'USA' ? null : assigned.get(c.iso3);
@@ -261,7 +226,7 @@ const ordered = [...countries.values()].sort((a, b) => a.iso3.localeCompare(b.is
 
 const output = `/* GENERATED by scripts/generate-world-catalog.mjs — edit the generator, not this file.
  * Explicit ISO-country registry for the International Directory:
- *  - deterministic country colours (never assigned at runtime; existing entries are preserved),
+ *  - deterministic sequential colours following the fixed geographic itinerary,
  *  - pinned geoBoundaries (gbOpen) subdivision files with exact byte sizes and SHA-256 digests.
  * The United States is intentionally uncoloured (muted grey) and redirects to the U.S. directory. */
 export const GEOBOUNDARIES_COMMIT = '${GEOBOUNDARIES_COMMIT}';
@@ -272,4 +237,4 @@ ${ordered.map(c => JSON.stringify(c)).join(',\n')}
 `;
 writeFileSync(catalogPath, output);
 console.log(`Wrote ${ordered.length} countries (${ordered.filter(c => c.levels.length).length} with subdivisions) to ${catalogPath}`);
-console.log('Opening order:', order.slice(0, 12).map(i => `${i}=${assigned.get(i).color}`).join(' '));
+console.log('Opening order:', COUNTRY_COLOR_ORDER.slice(0, 12).map(i => `${i}=${assigned.get(i).color}`).join(' '));
