@@ -89,30 +89,27 @@ disk and on the wire is untouched.
 
 ## 4. Country colours
 
-* The palette is the user's 9×9 screenshot (blues, teals, greens, yellows/golds, oranges, reds, pinks,
-  purples, dark neutrals). Hex values were sampled from the PNG embedded in the reference dossier using
-  each chip's **most common** colour, which ignores the watermark. 80 of 81 match the dossier's table;
-  purple #6 samples as `#81298F` rather than the dossier's watermark-affected `#893F97`. **The
-  screenshot remains the authority. These values are a careful sampling, not a claim of exact
-  reproduction.**
-* Colours follow an explicit **single geographic itinerary** in `scripts/world-country-order.mjs`,
-  beginning Canada → Mexico → Guatemala → Belize → Honduras → El Salvador → Nicaragua → Costa Rica →
-  Panama → Colombia → Ecuador → Peru, then South America, the Caribbean, Europe, Africa, Asia and
-  Oceania. That route is fixed, reviewed in source, and independently regression-tested.
-* **The first nine countries use blue shades 1–9 in order, with no skipping.** Additional blue
-  shades are derived and used immediately afterward as one continuous geographic blue block. Only
-  then does teal start, followed by green, yellow, orange, red, pink, purple and neutral. Each family
-  appears exactly once as a continuous geographic block. Unique intermediate shades accommodate all
-  239 country/territory entries. None of the blue shades reappear later in a different continent.
-* A country's colour is assigned by its position in the itinerary. Color-distance optimization,
-  previous incorrect assignments, and nearest-centroid heuristics never override this order.
-  All hover/selected/outline/glow states are derived from each country's own assigned color.
-  Tests reject out-of-order shade assignments or scattered color families.
-* Each country has `fill`, `hover`, `selected`, `outline`, `glow` and `accent` states. Its subdivisions
-  shade from the country colour toward its family's `accent`, keeping a shared lighting identity. A
-  selected region turns bright and glows in the country's glow colour.
-* Re-running the generator **preserves every existing assignment**. New countries only take unused
-  swatches. A snapshot test fails if any country's colour changes.
+* **Full palette:** 25 distinct color families, each with **10 explicitly listed hexadecimal shades**, in
+  `scripts/world-palette.mjs` (250 globally unique colors). No procedural interpolation is performed
+  by the generator. Original sampled shades 1–9 in the nine families from the owner's reference image
+  remain unchanged; each legacy family gains a new tenth shade. The other 16 families are newly curated.
+* **Family order:** blue → sky → cobalt → indigo → cyan → aqua → turquoise → teal → mint → jade → emerald → green → lime → yellow → amber → orange → coral → scarlet → red → burgundy → rose → pink → lavender → purple → neutral.
+* **Country order:** fixed explicit geographic itinerary in `scripts/world-country-order.mjs`, starting
+  Canada → Mexico → Guatemala → Belize → Honduras → El Salvador → Nicaragua → Costa Rica → Panama →
+  Colombia → Ecuador → Peru, continuing through the Americas, Europe, Africa, Asia and Oceania.
+  Every country consumes the next available palette swatch **without skipping**. Every family is used
+  in one contiguous group of at most 10 countries. The United States remains muted gray and does not
+  consume a swatch.
+* **Coverage:** 239 non-USA country/territory entries use 239 unique colors; 11 additional colors are
+  reserved for future entries. Each country's hover, selected, border and glow states derive from its
+  own assigned base shade. Subdivision colors remain tied to their country's family.
+* **Maintenance:** edit the source-controlled `scripts/world-palette.mjs`, then regenerate the
+  published `assets/js/world-catalog.js` with the pinned geography sources. Tests check 25 × 10,
+  shade uniqueness, the original blue sequence, source/catalog equality, and the full geographic
+  assignment. Do not reintroduce neighbor-contrast optimizations, random ordering, or reuse of old
+  color assignments.
+* **Deployment status:** changes made only in the unmerged feature PR; no production Render site or
+  Neon project has been modified.
 
 ## 5. Database and API security
 

@@ -5,8 +5,9 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {COUNTRIES, PALETTE, GEOBOUNDARIES_COMMIT} from '../assets/js/world-catalog.js';
-import {regionStates, countryStates, US_GREY, mix} from '../assets/js/world-colors.js';
+import {regionStates, countryStates, US_GREY} from '../assets/js/world-colors.js';
 import {COUNTRY_COLOR_ORDER, COUNTRY_COLOR_GROUPS} from '../scripts/world-country-order.mjs';
+import {WORLD_PALETTE, WORLD_FAMILY_ORDER} from '../scripts/world-palette.mjs';
 import {buildFacilityQuery, listFacilities, listCategories, cleanSearch, regionCondition, resetTokenCache, PUBLIC_COLUMNS} from '../assets/js/world-data.js';
 import {WORLD_DATA_API_URL, WORLD_AUTH_URL, BUNDLED_GEO} from '../assets/js/world-config.js';
 import {orientForD3, prepareFeatures, assignParents, loadLevel, regionCodes, geoUrl} from '../assets/js/world-geo.js';
@@ -42,6 +43,23 @@ test('every subdivision source is pinned by size and SHA-256 and the hierarchy i
 });
 
 /* ---------------- Country colours ---------------- */
+test('expanded palette contains 25 ordered hue families and 10 distinct shades per family', () => {
+  assert.deepEqual(Object.keys(PALETTE), WORLD_FAMILY_ORDER);
+  assert.deepEqual(PALETTE, WORLD_PALETTE);
+  assert.equal(Object.keys(PALETTE).length, 25);
+  assert.deepEqual(Object.values(PALETTE).map(row => row.length), Array(25).fill(10));
+  const shades = Object.values(PALETTE).flat();
+  assert.equal(shades.length, 250);
+  assert.equal(new Set(shades).size, 250, 'not one duplicate across the entire palette');
+  assert.ok(shades.every(color => /^#[0-9A-F]{6}$/.test(color)));
+});
+
+test('original nine source shades are retained for all original reference families', () => {
+  assert.deepEqual(PALETTE.blue.slice(0, 9), ['#ECFEFF','#74CBF5','#65A8E5','#5CA6F1','#589AEF','#3C57D4','#4063C7','#2B45AE','#131C79']);
+  assert.deepEqual(['blue','teal','green','yellow','orange','red','pink','purple','neutral'].map(family => PALETTE[family].length), Array(9).fill(10));
+});
+
+
 test('opening colour progression: Canada, Mexico, Guatemala get blue shades 1, 2, 3', () => {
   assert.equal(country('CAN').color, PALETTE.blue[0]);
   assert.equal(country('MEX').color, PALETTE.blue[1]);
@@ -80,28 +98,26 @@ test('geographic palette itinerary contains every non-USA country once in the in
   assert.deepEqual(COUNTRY_COLOR_ORDER.slice(9,12), ['COL','ECU','PER']);
 });
 
-test('palette is assigned sequentially without skipping shades or scattering colour families', () => {
-  const expected = [], seen = new Set();
-  for (const [family, row] of Object.entries(PALETTE)) {
-    const group = [];
-    row.forEach((color, i) => group.push({color, source: `${family} ${i + 1}`, family}));
-    for (const [t, count] of [[0.5, 8], [0.25, 8], [0.75, 2]]) {
-      for (let i = 0; i < count; i++) group.push({color: mix(row[i], row[i + 1], t),
-        source: t === 0.5 ? `${family} ${i + 1}½ (derived)` : `${family} ${i + 1 + t} (derived)`, family});
-    }
-    for (const entry of group) if (!seen.has(entry.color)) { seen.add(entry.color); expected.push(entry); }
-  }
-  const country = new Map(COUNTRIES.map(c => [c.iso3, c]));
-  COUNTRY_COLOR_ORDER.forEach((iso, i) => {
-    assert.equal(country.get(iso).color, expected[i].color, `${iso}: unexpected colour at palette position ${i + 1}`);
-    assert.equal(country.get(iso).colorSource, expected[i].source, `${iso}: skipped or reordered palette shade`);
+test('every country consumes one next explicit palette shade without interpolation or geographic shuffling', () => {
+  const expected = Object.entries(PALETTE).flatMap(([family, row]) =>
+    row.map((color, i) => ({color, source: `${family} ${i + 1}`})));
+  const byIso = new Map(COUNTRIES.map(c => [c.iso3, c]));
+  COUNTRY_COLOR_ORDER.forEach((iso, index) => {
+    assert.equal(byIso.get(iso).color, expected[index].color, `${iso}: incorrect fixed palette shade ${index + 1}`);
+    assert.equal(byIso.get(iso).colorSource, expected[index].source, `${iso}: color source is not next palette shade`);
   });
-  assert.deepEqual(COUNTRY_COLOR_ORDER.slice(0,9).map(iso => country.get(iso).colorSource),
-    ['blue 1','blue 2','blue 3','blue 4','blue 5','blue 6','blue 7','blue 8','blue 9']);
-  const runs = COUNTRY_COLOR_ORDER.map(iso => country.get(iso).colorSource.split(' ')[0])
-    .reduce((out, family) => {if (out.at(-1)?.family === family) out.at(-1).count++; else out.push({family,count:1});return out;}, []);
-  assert.deepEqual(runs.map(x => x.family), Object.keys(PALETTE), 'every palette family used exactly once and in order');
-  assert.ok(runs.every(x => x.count >= 20), 'each colour family forms one extended geographical block');
+  assert.deepEqual(COUNTRY_COLOR_ORDER.slice(0,10).map(iso => byIso.get(iso).colorSource),
+    ['blue 1','blue 2','blue 3','blue 4','blue 5','blue 6','blue 7','blue 8','blue 9','blue 10']);
+  const families = COUNTRY_COLOR_ORDER.map(iso => byIso.get(iso).colorSource.split(' ')[0]);
+  const runs = families.reduce((out, family) => {
+    if (out.at(-1)?.family === family) out.at(-1).count++;
+    else out.push({family, count:1});
+    return out;
+  }, []);
+  assert.deepEqual(runs.map(r => r.family), WORLD_FAMILY_ORDER.slice(0,24), 'palette families must never recur later elsewhere');
+  assert.ok(runs.slice(0,-1).every(r => r.count === 10), 'all complete hue groups must use exactly ten countries');
+  assert.equal(runs.at(-1).count, 9, '239 countries consume 23 full groups and 9 shades of group 24');
+  assert.equal(expected.length - COUNTRY_COLOR_ORDER.length, 11, 'eleven shades remain for future entries');
 });
 
 test('subdivision shades are deterministic and keep the country lighting identity', () => {

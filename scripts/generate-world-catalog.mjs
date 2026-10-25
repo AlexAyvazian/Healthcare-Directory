@@ -20,6 +20,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadVendorGlobals} from './lib/vendor-globals.mjs';
 import {COUNTRY_COLOR_ORDER} from './world-country-order.mjs';
+import {WORLD_PALETTE} from './world-palette.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const {topojson} = loadVendorGlobals(root);
@@ -34,19 +35,9 @@ for (const required of ['geoboundaries', 'atlas', 'iso', 'names']) {
 
 export const GEOBOUNDARIES_COMMIT = '5c25134028196d43ce97b5071934fd0cfc92f09f';
 
-/* Sampled from the user's original 9×9 palette screenshot (mode colour of each chip interior,
- * which ignores the semi-transparent watermark). The screenshot remains the visual authority. */
-const PALETTE = {
-  blue:    ['#ECFEFF','#74CBF5','#65A8E5','#5CA6F1','#589AEF','#3C57D4','#4063C7','#2B45AE','#131C79'],
-  teal:    ['#F2FEFF','#ACFAF1','#A2F2EB','#7FDFD1','#66C9BD','#376F78','#326C77','#265067','#1D4250'],
-  green:   ['#F6FEF2','#C0FB74','#B5F16E','#86ED4E','#80E148','#62B035','#599E31','#3E7B22','#2F6419'],
-  yellow:  ['#FFFED9','#FCEF6E','#F4E14B','#F2CE46','#C59A34','#AD932F','#8D7125','#7C5E1F','#6E571B'],
-  orange:  ['#FBEA61','#F2A43B','#ED722F','#F09637','#E94E2C','#C65323','#A83F1A','#852B15','#8B2A14'],
-  red:     ['#F1A38A','#E74A41','#EA3A2E','#ED7147','#B12A19','#E04033','#A82517','#881B18','#5D101E'],
-  pink:    ['#F9D9EF','#F19DC7','#E46CAD','#EA8CAE','#B13C72','#9A416B','#963762','#7D2349','#7D195D'],
-  purple:  ['#F9DAFA','#DC64D4','#DC68D1','#AB41A6','#8B3398','#81298F','#73228B','#570D67','#540C69'],
-  neutral: ['#DDD6DA','#856B81','#6B5C6E','#4B4754','#343A43','#260B1A','#150B09','#0C0603','#0F0601']
-};
+/* The complete ordered palette lives in world-palette.mjs, which also preserves
+ * the original reference-image samples. No runtime shade generation. */
+const PALETTE = WORLD_PALETTE;
 
 /* Shapes in world-atlas without an ISO 3166-1 numeric id (Natural Earth ADM0_A3 codes). */
 const NON_ISO = {
@@ -60,23 +51,15 @@ const NON_ISO = {
 const hex = value => [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16));
 const toHex = rgb => '#' + rgb.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
 const mix = (a, b, t) => toHex(hex(a).map((v, i) => v + (hex(b)[i] - v) * t));
-/* Each of nine palette families appears once in one continuous group: first its nine
- * source swatches, then nearby distinct derived shades, before moving on. This
- * prevents blue country fills from reappearing at random in Europe or elsewhere. */
+/* Advance to exactly the next explicit shade for the next geographic country. */
 function paletteSequence() {
-  const out = [], seen = new Set();
-  for (const [family, row] of Object.entries(PALETTE)) {
-    const group = [];
-    row.forEach((color, i) => group.push({color, family, source: `${family} ${i + 1}`}));
-    for (const [t, count] of [[0.5, 8], [0.25, 8], [0.75, 2]]) {
-      for (let i = 0; i < count; i++) group.push({
-        color: mix(row[i], row[i + 1], t), family,
-        source: t === 0.5 ? `${family} ${i + 1}½ (derived)` : `${family} ${i + 1 + t} (derived)`
-      });
-    }
-    for (const entry of group) if (!seen.has(entry.color)) { out.push(entry); seen.add(entry.color); }
+  const families = Object.entries(PALETTE);
+  const all = families.flatMap(([family, row]) => row.map((color, i) => ({color, family, source: `${family} ${i + 1}`})));
+  if (families.length !== 25 || families.some(([, row]) => row.length !== 10) ||
+      new Set(all.map(entry => entry.color)).size !== 250) {
+    throw new Error('Expected 25 color families with 10 globally distinct hex shades each.');
   }
-  return out;
+  return all;
 }
 
 function luminance(value) {
