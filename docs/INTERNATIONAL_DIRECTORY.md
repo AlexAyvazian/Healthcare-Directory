@@ -41,7 +41,8 @@ There is no server, Worker, or new paid service.
 
 ## 3. Geography
 
-* **Country outlines:** world-atlas `countries-50m.json`, loaded once (≈0.75 MB).
+* **Country outlines:** world-atlas `countries-50m.json`, loaded once (≈0.75 MB). No enclosing globe
+  outline is drawn: the projection's sphere path has no stroke or fill.
 * **Subdivisions:** geoBoundaries gbOpen *simplified* GeoJSON, **exactly as published**, pinned to commit
   [`5c25134028196d43ce97b5071934fd0cfc92f09f`](https://github.com/wmgeolab/geoBoundaries/tree/5c25134028196d43ce97b5071934fd0cfc92f09f/releaseData/gbOpen).
   Each file's byte size and SHA-256 come from its Git LFS pointer at that commit.
@@ -93,15 +94,22 @@ disk and on the wire is untouched.
   `scripts/world-palette.mjs` (250 globally unique colors). No procedural interpolation is performed
   by the generator. Original sampled shades 1–9 in the nine families from the owner's reference image
   remain unchanged; each legacy family gains a new tenth shade. The other 16 families are newly curated.
-* **Family order:** blue → sky → cobalt → indigo → cyan → aqua → turquoise → teal → mint → jade → emerald → green → lime → yellow → amber → orange → coral → scarlet → red → burgundy → rose → pink → lavender → purple → neutral.
+* **Family order:** blue → sky → cobalt → indigo → cyan → aqua → turquoise → teal → mint → jade → emerald → green → lime → yellow → amber → orange → coral → scarlet → red → burgundy → rose → **purple** → pink → lavender → neutral.
+  Purple was moved from 24th to 22nd (owner request, 2026-10-25) so it is used by ordinary countries:
+  Papua New Guinea, Australia (Purple 5), New Zealand and New Caledonia, among others. In 24th place
+  it reached only eight small Pacific islands. Pink and Lavender each moved one slot later; families
+  1–21 and all 250 hex values are unchanged.
 * **Country order:** fixed explicit geographic itinerary in `scripts/world-country-order.mjs`, starting
   Canada → Mexico → Guatemala → Belize → Honduras → El Salvador → Nicaragua → Costa Rica → Panama →
   Colombia → Ecuador → Peru, continuing through the Americas, Europe, Africa, Asia and Oceania.
   Every country consumes the next available palette swatch **without skipping**. Every family is used
-  in one contiguous group of at most 10 countries. The United States remains muted gray and does not
-  consume a swatch.
-* **Coverage:** 239 non-USA country/territory entries use 239 unique colors; 11 additional colors are
-  reserved for future entries. Each country's hover, selected, border and glow states derive from its
+  in one contiguous group of at most 10 countries. Two special cases are not numbered: the United
+  States (muted gray, links to `/`) and **Antarctica** (fixed ice-white `#F4F8FC`, white with a cool
+  blue glow on hover and selection; `ANTARCTICA_ICE` in `assets/js/world-colors.js`). Antarctica
+  stays as the final entry of the itinerary file but is skipped when swatches are numbered, so no
+  other country's position changes.
+* **Coverage:** 238 numbered country/territory entries use 238 unique colors (23 full families plus
+  8 Lavender shades); 12 colors are reserved for future entries. Each country's hover, selected, border and glow states derive from its
   own assigned base shade. Subdivision colors remain tied to their country's family.
 * **Subdivision shades** (derived at runtime in `world-colors.js`; country colours are unaffected):
   each region gets its own step on a ramp from the country colour toward its family accent. Where the

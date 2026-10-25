@@ -30,11 +30,7 @@ const state = {country: null, chain: [], levels: [], geoError: null, geoLoading:
 let navToken = 0;
 const list = {token: 0, abort: null, page: 0, items: [], total: null};
 
-/* ---------- SVG scaffolding (atmosphere, sphere, graticule, layers) ---------- */
-const defs = svg.append('defs');
-const ocean = defs.append('radialGradient').attr('id', 'oceanGlow').attr('cx', '50%').attr('cy', '42%').attr('r', '70%');
-ocean.append('stop').attr('offset', '0%').attr('stop-color', 'rgba(37,99,235,.20)');
-ocean.append('stop').attr('offset', '100%').attr('stop-color', 'rgba(4,8,20,.15)');
+/* ---------- SVG scaffolding (sphere kept invisible, graticule, layers) ---------- */
 const viewport = svg.append('g').attr('class', 'viewport');
 const sphereLayer = viewport.append('path').attr('class', 'sphere');
 const graticuleLayer = viewport.append('path').attr('class', 'graticule').datum(d3.geoGraticule10());
@@ -155,7 +151,9 @@ function renderWorldMap() {
   sphereLayer.datum({type: 'Sphere'}).attr('d', path);
   graticuleLayer.attr('d', path);
   const selected = state.country;
-  countryLayer.selectAll('path.country').data(worldFeatures, (d, i) => i).join(enter => {
+  // Keyed by each feature's own index (not DOM position): hover raise() reorders the DOM, and a
+  // positional key would rebind paths to other countries and leave stale colour variables.
+  countryLayer.selectAll('path.country').data(worldFeatures, d => d.atlasIndex).join(enter => {
     const paths = enter.append('path');
     styleVars(paths, d => countryStates(featureCountry(d)));
     bindRegionEvents(paths, d => chooseCountry(featureCountry(d)), d => {
@@ -715,6 +713,7 @@ async function start() {
   try {
     const atlas = await d3.json('/assets/vendor/world-atlas-countries-50m.json');
     worldFeatures = topojson.feature(atlas, atlas.objects.countries).features;
+    worldFeatures.forEach((feature, index) => { feature.atlasIndex = index; });
     $('loading').hidden = true;
     const p = fitParams({type: 'Sphere'}, [0, 0]);
     projection.rotate(p.r).scale(p.k).translate(p.t).precision(0.2);

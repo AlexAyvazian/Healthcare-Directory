@@ -2,6 +2,9 @@
  * subdivision shades are derived deterministically from their country's colour so a selected
  * country's regions keep its lighting identity while remaining individually distinguishable. */
 export const US_GREY = {fill: '#4A5363', hover: '#647086', selected: '#647086', outline: '#AEB7C6', glow: '#94A3B8', accent: '#94A3B8'};
+/* Antarctica is a special case like the U.S.: fixed ice-white, outside the numbered palette.
+ * Hover/selection light it with a cool blue glow so it still reacts on the dark UI. */
+export const ANTARCTICA_ICE = Object.freeze({fill: '#F4F8FC', hover: '#FFFFFF', selected: '#FFFFFF', outline: '#BFE3FF', glow: '#9FD4FF', accent: '#AFC6DE'});
 
 const hex = value => [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16));
 const toHex = rgb => '#' + rgb.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();

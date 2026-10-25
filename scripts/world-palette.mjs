@@ -5,7 +5,13 @@
  * The original nine shades in blue, teal, green, yellow, orange, red, pink,
  * purple, and neutral remain exactly as sampled from the owner's reference.
  * The final shade in those rows and the 16 new rows are approved expansions.
- * The U.S. is excluded from the palette and remains grey. */
+ * The U.S. is excluded from the palette and remains grey; Antarctica is excluded too and is
+ * rendered ice-white (ANTARCTICA_ICE in assets/js/world-colors.js).
+ *
+ * FAMILY ORDER (explicit, owner-requested 2026-10-25): Purple sits 22nd, directly after Rose,
+ * so ordinary countries consume it (Papua New Guinea, Australia, New Zealand, New Caledonia…).
+ * Before this change Purple was 24th and only reached eight small Pacific islands. Pink and
+ * Lavender each moved one slot later; families 1–21 and every hex value are unchanged. */
 export const WORLD_PALETTE = Object.freeze({
   blue: ['#ECFEFF', '#74CBF5', '#65A8E5', '#5CA6F1', '#589AEF', '#3C57D4', '#4063C7', '#2B45AE', '#131C79', '#101657'],
   sky: ['#A9D6EF', '#91CDED', '#78C4ED', '#5EBBED', '#44B2EE', '#2BAAEE', '#11A1EE', '#1090D5', '#117FBB', '#126FA1'],
@@ -28,9 +34,9 @@ export const WORLD_PALETTE = Object.freeze({
   red: ['#F1A38A', '#E74A41', '#EA3A2E', '#ED7147', '#B12A19', '#E04033', '#A82517', '#881B18', '#5D101E', '#4D0B17'],
   burgundy: ['#EFA9BE', '#ED91AD', '#ED789B', '#ED5E89', '#EE4477', '#EE2B65', '#EE1153', '#D5104B', '#BB1144', '#A1123D'],
   rose: ['#EFA9CD', '#ED91C1', '#ED78B4', '#ED5EA8', '#EE449C', '#EE2B90', '#EE1183', '#D51076', '#BB1169', '#A1125C'],
+  purple: ['#F9DAFA', '#DC64D4', '#DC68D1', '#AB41A6', '#8B3398', '#81298F', '#73228B', '#570D67', '#540C69', '#3E0A50'],
   pink: ['#F9D9EF', '#F19DC7', '#E46CAD', '#EA8CAE', '#B13C72', '#9A416B', '#963762', '#7D2349', '#7D195D', '#641448'],
   lavender: ['#CDA9EF', '#C191ED', '#B478ED', '#A85EED', '#9C44EE', '#902BEE', '#8311EE', '#7610D5', '#6911BB', '#5C12A1'],
-  purple: ['#F9DAFA', '#DC64D4', '#DC68D1', '#AB41A6', '#8B3398', '#81298F', '#73228B', '#570D67', '#540C69', '#3E0A50'],
   neutral: ['#DDD6DA', '#856B81', '#6B5C6E', '#4B4754', '#343A43', '#260B1A', '#150B09', '#0C0603', '#0F0601', '#202128']
 });
 export const WORLD_FAMILY_ORDER = Object.freeze(Object.keys(WORLD_PALETTE));

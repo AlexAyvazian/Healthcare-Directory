@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {COUNTRIES, PALETTE, GEOBOUNDARIES_COMMIT} from '../assets/js/world-catalog.js';
-import {regionStates, countryStates, US_GREY, colorDistance} from '../assets/js/world-colors.js';
+import {regionStates, countryStates, US_GREY, ANTARCTICA_ICE, colorDistance} from '../assets/js/world-colors.js';
 import {singularLabel, plural} from '../assets/js/world-labels.js';
 import {COUNTRY_COLOR_ORDER, COUNTRY_COLOR_GROUPS} from '../scripts/world-country-order.mjs';
 import {WORLD_PALETTE, WORLD_FAMILY_ORDER} from '../scripts/world-palette.mjs';
@@ -76,8 +76,24 @@ test('United States is muted grey, uses no palette colour, and redirects to the 
   assert.deepEqual(countryStates(us), US_GREY);
 });
 
+test('Antarctica is a fixed ice-white special case outside the numbered palette', () => {
+  const ata = country('ATA');
+  assert.equal(ata.color, '#F4F8FC');
+  assert.equal(ata.colorSource, 'special antarctica-ice');
+  assert.deepEqual(ata.states, {...ANTARCTICA_ICE});
+  assert.deepEqual(countryStates(ata), {...ANTARCTICA_ICE});
+  assert.ok(!Object.values(PALETTE).flat().includes(ata.color), 'ice-white is not a palette swatch');
+  assert.notEqual(ata.states.glow, ata.states.fill, 'hover/selection glow stays visible against white');
+});
+
+test('purple is consumed by ordinary countries, not only remote islands', () => {
+  assert.equal(WORLD_FAMILY_ORDER.indexOf('purple'), 21, 'purple is the 22nd family');
+  for (const iso3 of ['PNG', 'AUS', 'NZL', 'NCL']) assert.equal(country(iso3).colorSource.split(' ')[0], 'purple', iso3);
+  assert.equal(country('AUS').colorSource, 'purple 5');
+});
+
 test('every directory country has its own colour and its own hover/selected/outline/glow states', () => {
-  const coloured = COUNTRIES.filter(c => c.iso3 !== 'USA');
+  const coloured = COUNTRIES.filter(c => c.iso3 !== 'USA' && c.iso3 !== 'ATA');
   const colours = coloured.map(c => c.color);
   assert.equal(new Set(colours).size, colours.length, 'no two countries share a colour');
   const families = new Set(Object.keys(PALETTE));
@@ -103,13 +119,15 @@ test('every country consumes one next explicit palette shade without interpolati
   const expected = Object.entries(PALETTE).flatMap(([family, row]) =>
     row.map((color, i) => ({color, source: `${family} ${i + 1}`})));
   const byIso = new Map(COUNTRIES.map(c => [c.iso3, c]));
-  COUNTRY_COLOR_ORDER.forEach((iso, index) => {
+  const numbered = COUNTRY_COLOR_ORDER.filter(iso => iso !== 'ATA'); // Antarctica is special-cased
+  assert.deepEqual(numbered, COUNTRY_COLOR_ORDER.slice(0, -1), 'Antarctica is the final itinerary entry, so no other position shifts');
+  numbered.forEach((iso, index) => {
     assert.equal(byIso.get(iso).color, expected[index].color, `${iso}: incorrect fixed palette shade ${index + 1}`);
     assert.equal(byIso.get(iso).colorSource, expected[index].source, `${iso}: color source is not next palette shade`);
   });
   assert.deepEqual(COUNTRY_COLOR_ORDER.slice(0,10).map(iso => byIso.get(iso).colorSource),
     ['blue 1','blue 2','blue 3','blue 4','blue 5','blue 6','blue 7','blue 8','blue 9','blue 10']);
-  const families = COUNTRY_COLOR_ORDER.map(iso => byIso.get(iso).colorSource.split(' ')[0]);
+  const families = numbered.map(iso => byIso.get(iso).colorSource.split(' ')[0]);
   const runs = families.reduce((out, family) => {
     if (out.at(-1)?.family === family) out.at(-1).count++;
     else out.push({family, count:1});
@@ -117,8 +135,8 @@ test('every country consumes one next explicit palette shade without interpolati
   }, []);
   assert.deepEqual(runs.map(r => r.family), WORLD_FAMILY_ORDER.slice(0,24), 'palette families must never recur later elsewhere');
   assert.ok(runs.slice(0,-1).every(r => r.count === 10), 'all complete hue groups must use exactly ten countries');
-  assert.equal(runs.at(-1).count, 9, '239 countries consume 23 full groups and 9 shades of group 24');
-  assert.equal(expected.length - COUNTRY_COLOR_ORDER.length, 11, 'eleven shades remain for future entries');
+  assert.equal(runs.at(-1).count, 8, '238 numbered countries consume 23 full groups and 8 shades of group 24');
+  assert.equal(expected.length - numbered.length, 12, 'twelve shades remain for future entries');
 });
 
 test('subdivision shades are deterministic and keep the country lighting identity', () => {

@@ -110,13 +110,18 @@ test('UX-02/03/11/12 world overview: country polygons, deterministic colours, co
   // Every rendered country is filled with its own entry in the 25×10 palette sequence.
   const toRgb = h => `rgb(${[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
   const flat = Object.values(WORLD_PALETTE).flat();
-  const expected = new Map(COUNTRY_COLOR_ORDER.map((iso3, i) => [iso3, toRgb(flat[i])]));
+  const expected = new Map(COUNTRY_COLOR_ORDER.filter(iso3 => iso3 !== 'ATA').map((iso3, i) => [iso3, toRgb(flat[i])]));
   expected.set('USA', 'rgb(74, 83, 99)');
+  expected.set('ATA', 'rgb(244, 248, 252)'); // Antarctica: fixed ice-white special case
   const rendered = await page.$$eval('path.country', els => els.map(e => [e.dataset.iso3, getComputedStyle(e).fill]));
   assert.equal(rendered.length, 241);
   const wrong = rendered.filter(([iso3, f]) => expected.get(iso3) !== f);
   assert.deepEqual(wrong, [], 'rendered fills follow the palette sequence');
-  assert.equal(new Set(rendered.filter(([iso3]) => iso3 !== 'USA').map(([, f]) => f)).size, 239, '239 distinct country colours');
+  assert.equal(new Set(rendered.filter(([iso3]) => iso3 !== 'USA' && iso3 !== 'ATA').map(([, f]) => f)).size, 238, '238 distinct numbered country colours');
+  assert.ok(rendered.some(([iso3, f]) => iso3 === 'AUS' && f === toRgb(WORLD_PALETTE.purple[4])), 'Australia renders Purple 5');
+  // No visible globe outline: the sphere has neither stroke nor fill.
+  const sphere = await page.locator('path.sphere').evaluate(el => ({stroke: getComputedStyle(el).stroke, fill: getComputedStyle(el).fill}));
+  assert.deepEqual(sphere, {stroke: 'none', fill: 'none'});
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -208,6 +213,30 @@ test('UX-07 Mexico loads states, then municipalities inside the selected state (
   await page.waitForFunction(() => document.querySelectorAll('#breadcrumbs li').length === 4);
   assert.match(await page.textContent('#panelMeta'), /Most detailed boundary level/);
   assert.equal(await pinCount(page), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('COLOR-04 Antarctica is ice-white; colours stay correct after hovering then selecting (LIVE)', async () => {
+  const {page, context, errors} = await open();
+  const toRgb = h => `rgb(${[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+  const expected = new Map(COUNTRIES.map(c => [c.iso3, c.color ? toRgb(c.color) : 'rgb(74, 83, 99)']));
+  for (const iso3 of ['BRA', 'CHN', 'ATA', 'AUS', 'RUS', 'CAN']) await page.locator(`path.country[data-iso3=${iso3}]`).first().hover({force: true});
+  await page.mouse.move(2, 2);
+  await selectCountryByChip(page, 'Antarctica');
+  await page.waitForFunction(() => document.getElementById('panelTitle').textContent === 'Antarctica');
+  await page.waitForTimeout(1300);
+  const ata = await page.locator('path.country[data-iso3=ATA]').evaluate(el => ({cls: el.getAttribute('class'), fill: getComputedStyle(el).fill, filter: getComputedStyle(el).filter}));
+  assert.equal(ata.cls, 'country selected');
+  assert.equal(ata.fill, 'rgb(255, 255, 255)', 'selected Antarctica is white');
+  assert.match(ata.filter, /drop-shadow\(rgb\(159, 212, 255\)/, 'cool blue selection glow');
+  await page.locator('#breadcrumbs button', {hasText: 'World'}).click();
+  await page.waitForFunction(() => document.getElementById('panelTitle').textContent === 'World');
+  await page.waitForTimeout(1300);
+  const rendered = await page.$$eval('path.country', els => els.map(e => [e.dataset.iso3, getComputedStyle(e).getPropertyValue('--fill').trim()]));
+  const wrong = rendered.filter(([iso3, f]) => toRgb(f) !== expected.get(iso3));
+  assert.deepEqual(wrong, [], 'every path keeps its own colour variables after hover + re-render');
+  assert.equal(await page.locator('path.country[data-iso3=ATA]').evaluate(el => getComputedStyle(el).fill), 'rgb(244, 248, 252)', 'idle Antarctica is ice-white');
   assert.deepEqual(errors, []);
   await context.close();
 });
