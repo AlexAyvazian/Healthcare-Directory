@@ -27,7 +27,7 @@ There is no server, Worker, or new paid service.
 
 | File | Purpose |
 | --- | --- |
-| `world.html`, `assets/css/world.css` | Page and styles: glass panels, ice-white bioluminescent bubbles (replacing the original coloured orbs, owner request), cursor glow, luminous borders, floating record drawer (recovered design). |
+| `world.html`, `assets/css/world.css` | Page and styles: glass panels, the original floating orbs recoloured ice-white and bioluminescent, plus four smaller orbs (owner request), cursor glow, luminous borders, floating record drawer (recovered design). |
 | `assets/js/world-map.js` | D3 map controller: world → country → regions, fly-to transitions, breadcrumbs, Back/Escape, browser history (`#/CAN/…`), sidebar, drawer. |
 | `assets/js/world-data.js` | Read-only Neon Data API client (anonymous session token, GET only, paginated). |
 | `assets/js/world-geo.js` | Progressive boundary loading with in-browser size + SHA-256 verification and per-session caching. |
