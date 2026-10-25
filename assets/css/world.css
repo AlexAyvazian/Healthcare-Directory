@@ -138,23 +138,24 @@ h2{margin:0;font-size:26px;letter-spacing:-.03em}
 .field div{font-weight:650;overflow-wrap:anywhere}
 .field a{color:var(--accent)}
 
-/* Compact header: title block left, directory toggle stacked above the stats on the right, so the
- * map gets the height. */
-.header{padding:12px 22px;align-items:center}
-.header h1{font-size:clamp(24px,2.4vw,34px);margin-top:4px}
-.header .sub{font-size:13px;margin-top:5px;max-width:640px}
-.headerSide{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
-.headerSide .directorySwitch{margin-top:0}
-.headerSide .directorySwitch a{padding:6px 13px;font-size:12px}
-.headerSide .stat{min-width:0;padding:7px 12px;border-radius:14px}
-.headerSide .stat b{font-size:17px;display:inline;margin-right:6px}
-.headerSide .stat span{font-size:11px}
+/* Single-row header: title | three stat boxes | directory toggle. */
+.header{padding:10px 22px;align-items:center;flex-wrap:nowrap;gap:24px}
+.header .titleBlock{flex:0 0 auto}
+.header h1{font-size:clamp(22px,2.2vw,30px);margin-top:3px;white-space:nowrap}
+.header .stats{flex:1;justify-content:center;flex-wrap:nowrap}
+.header .stat{min-width:0;padding:7px 12px;border-radius:14px;white-space:nowrap}
+.header .stat b{font-size:17px;display:inline;margin-right:6px}
+.header .stat span{font-size:11px}
+.header .directorySwitch{margin-top:0;flex:0 0 auto}
+.header .directorySwitch a{padding:6px 13px;font-size:12px}
+.mapToolbar[hidden]{display:none}
 .app{gap:12px;padding-top:14px}
 @media(max-width:1100px){.app{grid-template-columns:minmax(0,1fr) 340px}}
 @media(max-width:860px){
   .app{display:flex;flex-direction:column;padding:10px;gap:12px;height:auto;min-height:100vh}
   .header{padding:14px 16px}.stats{justify-content:flex-start}.stat{min-width:0;flex:1}
-  .headerSide{align-items:stretch;width:100%}.headerSide .directorySwitch{align-self:flex-start}
+  .header{flex-wrap:wrap;gap:10px}.header .stats{order:3;flex-basis:100%;justify-content:flex-start;flex-wrap:wrap}
+  .header .stat{white-space:normal;padding:6px 10px}.header .stat b{display:block;margin:0}.header .stat span{font-size:10px;line-height:1.2}
   .mapPanel{height:62vh;min-height:380px;padding:10px}
   .sidePanel{position:static;height:auto;min-height:0;overflow:visible}
   .facilityList{max-height:65vh}

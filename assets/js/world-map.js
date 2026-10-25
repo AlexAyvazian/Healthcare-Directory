@@ -370,6 +370,7 @@ function updatePanel() {
   $('panelTitle').textContent = current ? current.name : country ? country.name : 'World';
   $('modeBadge').textContent = current ? levelLabel(country, chain.length - 1) : country ? 'Country' : 'World map';
   $('backBtn').hidden = !country;
+  $('mapToolbar').hidden = !country; // breadcrumbs/back only once a country is selected
   $('backBtn').textContent = chain.length > 1 ? `← ${chain.at(-2).name}` : chain.length === 1 ? `← ${country.name}` : '← World';
   document.documentElement.style.setProperty('--glow', colors?.glow || '#69dcff');
   document.documentElement.style.setProperty('--cardGlow', colors?.glow || 'rgba(125,211,252,.8)');
