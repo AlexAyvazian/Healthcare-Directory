@@ -85,7 +85,7 @@ button:disabled{opacity:.6;cursor:progress}
 .loading[hidden]{display:none}
 .tooltip{position:fixed;z-index:50;pointer-events:none;background:rgba(4,8,20,.92);border:1px solid var(--tip,rgba(125,211,252,.35));padding:10px 12px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45),0 0 24px var(--tipGlow,transparent);color:#fff;display:none;max-width:280px;font-size:13px;line-height:1.4}
 .tooltip small{color:var(--muted)}
-.attribution{margin:8px 4px 0;font-size:11px;color:var(--muted)}
+.attribution{margin:0;padding-top:8px;border-top:1px solid rgba(255,255,255,.07);font-size:10.5px;line-height:1.4;color:var(--muted);flex:0 0 auto}
 
 .sidePanel{padding:18px;display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
 .sideTitle{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
