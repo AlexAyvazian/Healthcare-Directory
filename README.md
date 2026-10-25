@@ -1,5 +1,14 @@
 # Healthcare Facility Map
 
+Two separate, view-only geographic directories on one static site:
+
+* **United States** (`/`): the existing state → county map backed by the `HEALTHCARE_DIRECTORY` Neon project.
+* **International** (`/world.html`): world → country → province/state/region drill-down backed by the
+  separate `WORLD_HEALTHCARE_DIRECTORY` Neon project. Regions are the only selectable objects (no
+  facility pins); facilities appear in the scrollable sidebar. See
+  [docs/INTERNATIONAL_DIRECTORY.md](docs/INTERNATIONAL_DIRECTORY.md) for geography sources, the pinned
+  Canada boundary file, country colours, database security, tests, and known limitations.
+
 ## Render Static Site
 
 This repository now builds a **static front end** for the Render CDN. **No Render Web Service, Cloudflare Worker, or server cold start is required for the website shell.**
@@ -49,3 +58,6 @@ who can view the data.
 The existing Node backend remains in `server/` for private/local deployments. Render static hosting does **not** execute it, and the public map no longer calls its `/api/healthcare` endpoints.
 
 Run `npm test` and `npm run build` locally or rely on the GitHub verification workflow.
+`npm run build` downloads the bundled geoBoundaries files (≈92 MB, including Canada's original
+26,022,306-byte file) and fails if any byte count or SHA-256 differs from the pinned values.
+Browser tests: `npm run build && npm run test:e2e` (requires Playwright with Chromium).
