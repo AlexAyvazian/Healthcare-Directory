@@ -35,7 +35,7 @@ test.before(async () => {
       createReadStream(file).pipe(res);
     } catch { res.writeHead(404).end('not found'); }
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise(resolve => server.listen(Number(process.env.E2E_PORT || 0), '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch();
 });
@@ -47,6 +47,9 @@ async function open(path = '/world.html', options = {}) {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  // Hermetic default for the registry Worker: no registries (REG tests override this route).
+  await page.route('https://healthcare-directory-api.alexa186469.workers.dev/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*'}, body: JSON.stringify({sources: []})}));
   await page.goto(base + path);
   if (path.startsWith('/world')) await page.waitForSelector('body[data-ready=true]', {timeout: 30000});
   return {page, context, errors};
@@ -340,6 +343,65 @@ test('UX-13 mobile layout: map selection and scrolling facility cards remain usa
   await page.waitForTimeout(900);
   await page.screenshot({path: join(shots, '08-mobile-british-columbia-fixture.png')});
   assert.deepEqual(errors, []);
+  await context.close();
+});
+
+/* National registry (Cloudflare Worker). REG-01 needs the Worker running locally, e.g.
+ *   cd worker && npx wrangler dev --port 8787 --var FRONTEND_ORIGIN:http://127.0.0.1:4173
+ *   E2E_PORT=4173 REGISTRY_WORKER_URL=http://127.0.0.1:8787 npm run test:e2e
+ * Browser requests to the workers.dev URL are routed to that local Worker (real workerd runtime,
+ * real CORS, live NHS ODS registry). */
+const WORKER_ORIGIN = 'https://healthcare-directory-api.alexa186469.workers.dev';
+test('REG-01 United Kingdom: "National registry" lists live NHS ODS records through the Worker (LIVE)', {skip: !process.env.REGISTRY_WORKER_URL && 'REGISTRY_WORKER_URL not set'}, async () => {
+  const {page, context, errors} = await open();
+  await page.route(WORKER_ORIGIN + '/**', async route => {
+    const url = new URL(route.request().url());
+    const response = await route.fetch({url: process.env.REGISTRY_WORKER_URL + url.pathname + url.search});
+    await route.fulfill({response});
+  });
+  await page.reload();
+  await page.waitForSelector('body[data-ready=true]');
+  await selectCountryByChip(page, 'United Kingdom');
+  await page.waitForSelector('#listMode:not([hidden])');
+  assert.equal(await page.getAttribute('#listMode button[data-mode=directory]', 'aria-pressed'), 'true', 'Neon directory stays the default');
+  await page.click('#listMode button[data-mode=registry]');
+  await page.waitForSelector('#facilityList .facility', {timeout: 30000});
+  assert.match(await page.textContent('#listLabel'), /^NHS Organisation Data Service \(ODS\) · 20 of [\d,]+ · United Kingdom/);
+  assert.equal(await page.isHidden('#category'), true, 'Neon category filter hidden in registry mode');
+  assert.match(await page.textContent('#selectionCount'), /No healthcare facilities published here yet/, 'country card keeps the Neon count, not the registry total');
+  const before = await page.locator('#facilityList .facility').count();
+  assert.ok(before > 0, 'registry records listed');
+  await page.fill('#search', 'guy');
+  await page.waitForFunction(() => [...document.querySelectorAll('#facilityList .facility h3')].some(h => /Guy/i.test(h.textContent)), null, {timeout: 30000});
+  await page.locator('#facilityList .facility').first().click();
+  assert.match(await page.textContent('#drawerBody'), /NHS Organisation Data Service/);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.screenshot({path: join(shots, '22-uk-national-registry.png')});
+  if (await page.isVisible('#loadMore')) {
+    const n = await page.locator('#facilityList .facility').count();
+    await page.click('#loadMore');
+    await page.waitForFunction(count => document.querySelectorAll('#facilityList .facility').length > count, n, {timeout: 30000});
+  }
+  await page.click('#listMode button[data-mode=directory]');
+  await page.waitForFunction(() => /facilities/.test(document.getElementById('listLabel').textContent) && !/NHS/.test(document.getElementById('listLabel').textContent), null, {timeout: 30000});
+  assert.equal(await pinCount(page), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('REG-02 if the registry Worker is unavailable the switch stays hidden and Neon works unchanged', async () => {
+  const {page, context, errors} = await open();
+  // Exactly today's live Worker: plain-text "Hello World!" without CORS headers.
+  await page.route(WORKER_ORIGIN + '/**', route => route.fulfill({status: 200, contentType: 'text/plain', body: 'Hello World!'}));
+  await page.reload();
+  await page.waitForSelector('body[data-ready=true]');
+  await selectCountryByChip(page, 'United Kingdom');
+  await page.waitForSelector('#facilityList .empty, #facilityList .facility', {timeout: 30000});
+  await page.waitForTimeout(800);
+  assert.equal(await page.isHidden('#listMode'), true);
+  assert.equal(await page.isVisible('#category'), true);
+  assert.deepEqual(errors.filter(e => !e.includes(WORKER_ORIGIN)), [], 'only the expected CORS notice for the undeployed Worker');
   await context.close();
 });
 

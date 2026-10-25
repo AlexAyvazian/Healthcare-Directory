@@ -1,0 +1,15 @@
+# Cloudflare Worker: national healthcare registry API (free tier, no bindings needed).
+# Deploy only after owner approval:  cd worker && npx wrangler deploy
+name = "healthcare-directory-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+# FRONTEND_ORIGIN is configured in the Cloudflare dashboard; keep dashboard variables on deploy.
+keep_vars = true
+
+[observability]
+enabled = true
+
+# Secrets are NOT stored here. Add them with:
+#   npx wrangler secret put ESANTE_API_KEY
+# or in the dashboard: Workers & Pages → healthcare-directory-api → Settings → Variables and Secrets.

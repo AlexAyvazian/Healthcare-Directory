@@ -51,7 +51,11 @@
         <div class="regionGrid" id="regionList" role="list"></div>
       </section>
       <section class="facilitySection" aria-labelledby="listLabel">
-        <div class="facilityTools">
+        <div class="listMode" id="listMode" role="group" aria-label="Facility list source" hidden>
+          <button type="button" data-mode="directory" aria-pressed="true">Directory</button>
+          <button type="button" data-mode="registry" aria-pressed="false">National registry</button>
+        </div>
+        <div class="facilityTools" id="facilityTools">
           <input id="search" type="search" placeholder="Search facility name or city…" aria-label="Search facilities" disabled>
           <select id="category" aria-label="Facility category" disabled><option value="">All categories</option></select>
         </div>

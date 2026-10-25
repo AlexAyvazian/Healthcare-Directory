@@ -101,6 +101,12 @@ h2{margin:0;font-size:26px;letter-spacing:-.03em}
 .chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip:hover,.chip.sel{border-color:var(--glow,var(--accent));box-shadow:0 0 0 1px var(--glow,rgba(105,220,255,.35)),0 0 24px color-mix(in srgb,var(--glow,#69dcff) 35%,transparent)}
 .facilitySection{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}
+.listMode{display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(4,8,20,.6);border:1px solid rgba(255,255,255,.1);align-self:flex-start}
+.listMode[hidden]{display:none}
+.listMode button{padding:6px 13px;border-radius:999px;font-size:12px;font-weight:700;color:var(--muted);background:transparent;border:0}
+.listMode button[aria-pressed=true]{color:#fff;background:linear-gradient(135deg,rgba(125,211,252,.28),rgba(167,139,250,.28));box-shadow:0 0 0 1px rgba(125,211,252,.45)}
+.facilityTools.registry{grid-template-columns:1fr}
+.facilityTools.registry select{display:none}
 .facilityTools{display:grid;grid-template-columns:1fr 150px;gap:8px}
 .facilityTools input,.facilityTools select{min-width:0;padding:9px 12px;border-radius:14px;font-size:13px}
 .facilityList{overflow:auto;display:flex;flex-direction:column;gap:10px;padding:2px 4px 2px 2px;flex:1;min-height:150px}

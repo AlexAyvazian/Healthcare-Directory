@@ -25,3 +25,5 @@ jobs:
       - run: node --check assets/js/world-labels.js
       - run: node --check assets/js/world-catalog.js
       - run: node --check assets/js/world-config.js
+      - run: node --check assets/js/registry-data.js
+      - run: node --check worker/src/index.js
