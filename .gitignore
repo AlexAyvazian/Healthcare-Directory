@@ -7,3 +7,4 @@ node_modules/
 dist/
 .geo-cache/
 test-results/
+.wrangler/
