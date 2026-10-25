@@ -19,7 +19,12 @@ const directoryCountries = COUNTRIES.filter(c => !c.redirect && !c.noDirectory);
 const FLY_MS = 750;
 
 let width = 0, height = 0;
-const projection = d3.geoNaturalEarth1();
+/* Flat (cylindrical) Miller projection: straight meridians and parallels, no globe-like curvature,
+ * and the whole of Antarctica stays on the map. Country views only shift east–west, never tilt. */
+const millerRaw = (lambda, phi) => [lambda, 1.25 * Math.log(Math.tan(Math.PI / 4 + 0.4 * phi))];
+millerRaw.invert = (x, y) => [x, 2.5 * Math.atan(Math.exp(0.8 * y)) - 0.625 * Math.PI];
+const flatProjection = () => d3.geoProjection(millerRaw);
+const projection = flatProjection();
 const path = d3.geoPath(projection);
 let worldFeatures = [];
 let focusTarget = {target: {type: 'Sphere'}, rotate: [0, 0]};
@@ -58,15 +63,15 @@ function focusGeometry(feature) {
 
 function fitParams(target, rotate) {
   const pad = Math.max(16, Math.min(width, height) * 0.06);
-  const p = d3.geoNaturalEarth1().rotate(rotate).precision(0.2);
+  const p = flatProjection().rotate(rotate).precision(0.2);
   if (target.type === 'Sphere') p.fitExtent([[10, 10], [width - 10, height - 10]], target);
   else p.fitExtent([[pad, pad], [width - pad, height - pad]], target);
   return {r: rotate, k: p.scale(), t: p.translate()};
 }
-/* Centre the projection on a country so its meridians stand upright (no Natural Earth shear). */
+/* Centre the flat map on a country by shifting east–west only; tilting north–south would bend it. */
 function countryRotation(feature) {
-  const [lon, lat] = d3.geoCentroid(feature);
-  return [-lon, -lat];
+  const [lon] = d3.geoCentroid(feature);
+  return [-lon, 0];
 }
 
 /* Smoothly fly from the current view to `target`, then re-project every layer at full precision.

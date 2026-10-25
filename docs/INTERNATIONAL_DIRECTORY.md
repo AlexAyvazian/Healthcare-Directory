@@ -43,6 +43,8 @@ There is no server, Worker, or new paid service.
 
 * **Country outlines:** world-atlas `countries-50m.json`, loaded once (≈0.75 MB). No enclosing globe
   outline is drawn: the projection's sphere path has no stroke or fill.
+* **Projection:** flat Miller cylindrical (straight meridians and parallels, owner request). Country views
+  re-centre east–west only, so the map never curves or tilts.
 * **Subdivisions:** geoBoundaries gbOpen *simplified* GeoJSON, **exactly as published**, pinned to commit
   [`5c25134028196d43ce97b5071934fd0cfc92f09f`](https://github.com/wmgeolab/geoBoundaries/tree/5c25134028196d43ce97b5071934fd0cfc92f09f/releaseData/gbOpen).
   Each file's byte size and SHA-256 come from its Git LFS pointer at that commit.
