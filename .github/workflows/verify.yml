@@ -22,5 +22,6 @@ jobs:
       - run: node --check assets/js/world-data.js
       - run: node --check assets/js/world-geo.js
       - run: node --check assets/js/world-colors.js
+      - run: node --check assets/js/world-labels.js
       - run: node --check assets/js/world-catalog.js
       - run: node --check assets/js/world-config.js

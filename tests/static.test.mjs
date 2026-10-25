@@ -87,6 +87,7 @@ test('Render build publishes only public viewer assets, without uploads or downl
     'assets/js/world-data.js',
     'assets/js/world-geo.js',
     'assets/js/world-colors.js',
+    'assets/js/world-labels.js',
     'assets/js/world-catalog.js',
     'assets/js/world-config.js',
     'assets/vendor/world-atlas-countries-50m.json',
@@ -129,7 +130,7 @@ test('international viewer is view-only: no uploads, exports, downloads, admin l
   const root=fileURLToPath(new URL('../',import.meta.url));
   const html=await readFile(join(root,'dist/world.html'),'utf8');
   assert.doesNotMatch(html,/download|export|upload|import|admin|<input[^>]+type=['"]file|<form/i);
-  for(const file of ['world-map.js','world-data.js','world-geo.js','world-config.js','world-colors.js']){
+  for(const file of ['world-map.js','world-data.js','world-geo.js','world-config.js','world-colors.js','world-labels.js']){
     const js=await readFile(join(root,'dist/assets/js',file),'utf8');
     assert.doesNotMatch(js,/postgres(?:ql)?:\/\/|npg_|password\s*=|neondb_owner|api[_-]?key/i,file);
     assert.doesNotMatch(js,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/,file);

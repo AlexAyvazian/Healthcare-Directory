@@ -103,6 +103,12 @@ disk and on the wire is untouched.
 * **Coverage:** 239 non-USA country/territory entries use 239 unique colors; 11 additional colors are
   reserved for future entries. Each country's hover, selected, border and glow states derive from its
   own assigned base shade. Subdivision colors remain tied to their country's family.
+* **Subdivision shades** (derived at runtime in `world-colors.js`; country colours are unaffected):
+  each region gets its own step on a ramp from the country colour toward its family accent. Where the
+  accent is too close to the country colour (OKLab distance < 0.2), the ramp runs toward a darker
+  version of the country's own colour (for light colours) or a lighter one (for dark colours). The
+  ramp positions are assigned by a true permutation, so every region in a country gets a distinct
+  shade. Tests check this for every country.
 * **Maintenance:** edit the source-controlled `scripts/world-palette.mjs`, then regenerate the
   published `assets/js/world-catalog.js` with the pinned geography sources. Tests check 25 × 10,
   shade uniqueness, the original blue sequence, source/catalog equality, and the full geographic
@@ -164,12 +170,31 @@ records are never written to Neon. Screenshots are in `docs/evidence/`.
 ## 7. Known limitations and decisions for the owner
 
 1. **The U.S. Data API currently rejects anonymous requests** (`400 … required authorization bearer
-   token in JWT format`, verified 2026-10-24). The U.S. sidebar therefore cannot load records,
-   although its map works. This predates this change and was **not** altered, because the U.S. map
-   and database are out of scope without approval. The same anonymous-token approach used here would
-   fix it.
+   token in JWT format`, re-verified 2026-10-25 against `healthcare_facilities`). The U.S. sidebar
+   therefore cannot load records, although its map works. Read-only inspection of
+   `HEALTHCARE_DIRECTORY` (`br-hidden-cherry-b49li3cv`) found that `anonymous` has column-level
+   `SELECT` only and no write privileges, RLS is on, and the table has 0 rows. **Neon Auth is not
+   enabled** on that branch, so nothing can issue the anonymous JWT the Data API requires.
+   Smallest safe correction, **not applied, awaiting approval:**
+   1. enable Neon Auth on the U.S. production branch (adds the `/token/anonymous` endpoint; no table,
+      grant or policy changes), then
+   2. in `assets/js/neon-data.js` only, fetch the anonymous token and send it as
+      `Authorization: Bearer …`, the same ~20-line pattern as `world-data.js`. The U.S. map code,
+      geometry and styling stay unchanged.
 2. The site points at the **development** branch of `WORLD_HEALTHCARE_DIRECTORY`. The production
-   branch has no Data API or Neon Auth yet. Promoting either requires owner approval.
+   branch (`br-delicate-violet-b5206hdr`) has **no Data API and no Neon Auth** (both return 404,
+   re-checked 2026-10-25). Switching to production safely would need, **with approval:**
+   1. apply the dev branch's schema to production: `directory_private.facilities`, the
+      `directory.facilities` and `directory.category_counts` views (security_invoker/barrier), the
+      `world_directory_reader` role with column-level grants, `anonymous` membership, forced RLS
+      with `public_read_published`, and the indexes. Compare the two first with a schema diff; no
+      data is moved;
+   2. provision the Data API on production (exposed schema `directory` only, anonymous role
+      `anonymous`, max rows 101) and enable Neon Auth;
+   3. repeat the read-only privilege and RLS checks from §5 against production;
+   4. change the two URLs in `assets/js/world-config.js`, rebuild and rerun the tests;
+   5. import real, verified facility records into production through a private workflow (never
+      synthetic ones).
 3. The Neon Auth anonymous-token endpoint currently answers any `Origin` (no trusted domains
    configured). It only issues read-only anonymous tokens, but restricting it to the Render domain
    is recommended.
@@ -177,8 +202,12 @@ records are never written to Neon. Screenshots are in `docs/evidence/`.
    hash-verified. To remove the dependency, add more entries to `BUNDLED_GEO`.
 5. Large files load with a progress bar: Canada ADM1 26 MB (accepted), Canada ADM2 18 MB, Mexico
    ADM2 17 MB.
-6. Tiny island states are hard to click on the world view. The searchable country list in the sidebar
+6. On phones the world overview leaves empty space above and below the map, because the map panel
+   is sized for the taller country and region views. Cosmetic only.
+7. Some source region names are inconsistent (e.g. Japan lists both "Aichi Prefecture" and "Akita").
+   They are shown exactly as geoBoundaries publishes them.
+8. Tiny island states are hard to click on the world view. The searchable country list in the sidebar
    reaches every country by mouse or keyboard.
-7. The Playwright suite is not part of the GitHub workflow, because it needs a browser install.
+9. The Playwright suite is not part of the GitHub workflow, because it needs a browser install.
    It was run locally (see the PR).
-8. Database credentials pasted in earlier conversations should be rotated by the owner.
+10. Database credentials pasted in earlier conversations should be rotated by the owner.

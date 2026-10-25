@@ -24,6 +24,7 @@ const files = [
   'assets/js/world-data.js',
   'assets/js/world-geo.js',
   'assets/js/world-colors.js',
+  'assets/js/world-labels.js',
   'assets/js/world-catalog.js',
   'assets/js/world-config.js',
   'assets/vendor/world-atlas-countries-50m.json',

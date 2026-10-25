@@ -12,6 +12,8 @@ import {extname, join, normalize} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {COUNTRIES} from '../../assets/js/world-catalog.js';
 import {respond as fixtureResponse} from '../fixtures/world-facilities.fixture.mjs';
+import {WORLD_PALETTE} from '../../scripts/world-palette.mjs';
+import {COUNTRY_COLOR_ORDER} from '../../scripts/world-country-order.mjs';
 
 const {chromium} = createRequire(import.meta.url)('playwright');
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -105,6 +107,16 @@ test('UX-02/03/11/12 world overview: country polygons, deterministic colours, co
   await page.reload();
   await page.waitForSelector('body[data-ready=true]');
   assert.equal(await fill('CAN'), 'rgb(236, 254, 255)', 'colours stable across reloads');
+  // Every rendered country is filled with its own entry in the 25×10 palette sequence.
+  const toRgb = h => `rgb(${[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+  const flat = Object.values(WORLD_PALETTE).flat();
+  const expected = new Map(COUNTRY_COLOR_ORDER.map((iso3, i) => [iso3, toRgb(flat[i])]));
+  expected.set('USA', 'rgb(74, 83, 99)');
+  const rendered = await page.$$eval('path.country', els => els.map(e => [e.dataset.iso3, getComputedStyle(e).fill]));
+  assert.equal(rendered.length, 241);
+  const wrong = rendered.filter(([iso3, f]) => expected.get(iso3) !== f);
+  assert.deepEqual(wrong, [], 'rendered fills follow the palette sequence');
+  assert.equal(new Set(rendered.filter(([iso3]) => iso3 !== 'USA').map(([, f]) => f)).size, 239, '239 distinct country colours');
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -196,6 +208,23 @@ test('UX-07 Mexico loads states, then municipalities inside the selected state (
   await page.waitForFunction(() => document.querySelectorAll('#breadcrumbs li').length === 4);
   assert.match(await page.textContent('#panelMeta'), /Most detailed boundary level/);
   assert.equal(await pinCount(page), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('COLOR-03 subdivisions are distinguishable shades; level names read correctly (LIVE geometry)', async () => {
+  const {page, context, errors} = await open();
+  await selectCountryByChip(page, 'Germany');
+  await page.waitForSelector('g.level-0 path.region');
+  const fills = await page.$$eval('g.level-0 path.region', els => els.map(e => getComputedStyle(e).fill));
+  assert.equal(fills.length, 16);
+  assert.equal(new Set(fills).size, 16, `German federal states use distinct shades (${new Set(fills).size})`);
+  await page.locator('#breadcrumbs button', {hasText: 'World'}).click();
+  await selectCountryByChip(page, 'Japan');
+  await page.waitForSelector('g.level-0 path.region', {timeout: 60000});
+  await page.waitForFunction(() => /prefecture/i.test(document.getElementById('panelMeta').textContent));
+  assert.match(await page.textContent('#panelMeta'), /Select a prefecture on the map/);
+  assert.match(await page.textContent('#mapLabel'), /47 prefectures$/);
   assert.deepEqual(errors, []);
   await context.close();
 });

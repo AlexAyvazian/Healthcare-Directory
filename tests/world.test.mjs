@@ -5,7 +5,8 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {COUNTRIES, PALETTE, GEOBOUNDARIES_COMMIT} from '../assets/js/world-catalog.js';
-import {regionStates, countryStates, US_GREY} from '../assets/js/world-colors.js';
+import {regionStates, countryStates, US_GREY, colorDistance} from '../assets/js/world-colors.js';
+import {singularLabel, plural} from '../assets/js/world-labels.js';
 import {COUNTRY_COLOR_ORDER, COUNTRY_COLOR_GROUPS} from '../scripts/world-country-order.mjs';
 import {WORLD_PALETTE, WORLD_FAMILY_ORDER} from '../scripts/world-palette.mjs';
 import {buildFacilityQuery, listFacilities, listCategories, cleanSearch, regionCondition, resetTokenCache, PUBLIC_COLUMNS} from '../assets/js/world-data.js';
@@ -128,6 +129,35 @@ test('subdivision shades are deterministic and keep the country lighting identit
   const fills = new Set(Array.from({length: 13}, (_, i) => regionStates(can, i, 13).fill));
   assert.ok(fills.size >= 10, 'regions get distinguishable shades');
   assert.notEqual(regionStates(can, 0, 13).selected, regionStates(can, 0, 13).fill, 'selected region stands out');
+});
+
+test('every country\'s subdivisions get clearly distinguishable shades of its own colour', () => {
+  for (const c of COUNTRIES.filter(x => x.states)) {
+    const fills = Array.from({length: 12}, (_, i) => regionStates(c, i, 12).fill);
+    let spread = 0;
+    for (const a of fills) for (const b of fills) spread = Math.max(spread, colorDistance(a, b));
+    assert.ok(spread >= 0.12, `${c.iso3} subdivision shades too similar (spread ${spread.toFixed(3)})`);
+    for (const n of [5, 13, 16, 32, 47]) {
+      const shades = new Set(Array.from({length: n}, (_, i) => regionStates(c, i, n).fill));
+      assert.ok(shades.size >= Math.min(n, 12), `${c.iso3}: ${shades.size} distinct shades for ${n} regions`);
+    }
+    assert.equal(regionStates(c, 0, 12).glow, c.states.glow, `${c.iso3} regions glow in the country colour`);
+  }
+});
+
+test('source level names are shown in grammatical singular and counted plural forms', () => {
+  assert.equal(singularLabel('Prefectures'), 'Prefecture');
+  assert.equal(singularLabel('Counties and Unitary Authorities'), 'County and Unitary Authority');
+  assert.equal(singularLabel('Parishes'), 'Parish');
+  assert.equal(singularLabel('Province/Territory'), 'Province/Territory');
+  assert.equal(singularLabel('Bundesländer'), 'Bundesländer', 'non-English names unchanged');
+  assert.equal(singularLabel('Regiões'), 'Regiões');
+  assert.equal(singularLabel('Okres'), 'Okres');
+  assert.equal(plural(47, 'prefecture'), '47 prefectures');
+  assert.equal(plural(13, 'province/territory'), '13 province/territories');
+  assert.equal(plural(1, 'state'), '1 state');
+  assert.equal(plural(569, 'municipality'), '569 municipalities');
+  assert.equal(plural(14, 'parish'), '14 parishes');
 });
 
 /* ---------------- Neon Data API client ---------------- */

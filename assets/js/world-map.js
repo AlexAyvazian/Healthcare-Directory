@@ -5,6 +5,7 @@
 import {COUNTRIES} from './world-catalog.js';
 import {countryStates, regionStates} from './world-colors.js';
 import {loadLevel, assignParents} from './world-geo.js';
+import {singularLabel, plural} from './world-labels.js';
 import {listFacilities, listCategories, PAGE_SIZE} from './world-data.js';
 
 (() => {
@@ -44,8 +45,10 @@ const featureCountry = feature => (feature.id && byNumeric.get(feature.id)) || b
 const styleVars = (selection, colors) => selection
   .style('--fill', c => colors(c).fill).style('--hover', c => colors(c).hover)
   .style('--selected', c => colors(c).selected).style('--outline', c => colors(c).outline).style('--glow', c => colors(c).glow);
-const levelLabel = (country, index) => country?.levels[index]?.label || (index === 0 ? 'Region' : `Level ${index + 1} region`);
-const plural = (n, word) => `${n.toLocaleString()} ${n === 1 ? word : word.replace(/y$/, 'ie') + 's'}`;
+const levelLabel = (country, index) => {
+  const label = country?.levels[index]?.label;
+  return label ? singularLabel(label) : (index === 0 ? 'Region' : `Level ${index + 1} region`);
+};
 
 /* Focus on the main landmass of a feature (overseas fragments far from it would zoom the map out). */
 function focusGeometry(feature) {
