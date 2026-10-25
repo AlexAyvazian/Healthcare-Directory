@@ -19,3 +19,7 @@ export const BUNDLED_GEO = [
 ];
 export const BUNDLED_GEO_ROOT = '/geo/gbOpen';
 export const REMOTE_GEO_ROOT = commit => `https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/${commit}/releaseData/gbOpen`;
+
+/* National healthcare registry API (Cloudflare Worker). Public HTTPS endpoint; registry API keys are
+ * Cloudflare Worker Secrets and never reach the browser. */
+export const REGISTRY_API_URL = 'https://healthcare-directory-api.alexa186469.workers.dev';

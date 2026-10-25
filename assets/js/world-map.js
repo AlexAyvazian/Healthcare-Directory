@@ -7,6 +7,7 @@ import {countryStates, regionStates} from './world-colors.js';
 import {loadLevel, assignParents} from './world-geo.js';
 import {singularLabel, plural} from './world-labels.js';
 import {listFacilities, listCategories, PAGE_SIZE} from './world-data.js';
+import {registrySources, searchRegistry, toCardItem} from './registry-data.js';
 
 (() => {
 'use strict';
@@ -33,7 +34,7 @@ let flying = null;
 /* Selection state: country, chain of selected regions (one per level), loaded level features. */
 const state = {country: null, chain: [], levels: [], geoError: null, geoLoading: false, rotate: [0, 0]};
 let navToken = 0;
-const list = {token: 0, abort: null, page: 0, items: [], total: null};
+const list = {token: 0, abort: null, page: 0, items: [], total: null, mode: 'directory', cursor: null, registries: new Map(), registryToken: 0, registryAbort: null, registryTotal: null};
 
 /* ---------- SVG scaffolding (sphere kept invisible, graticule, layers) ---------- */
 const viewport = svg.append('g').attr('class', 'viewport');
@@ -485,7 +486,22 @@ function renderRegionList() {
 }
 
 /* ---------- Facility list + record drawer (openRecord) ---------- */
+/* "Directory | National registry" switch: shown only when a configured national registry covers the
+ * selected country. Directory (Neon) stays the default view. */
+function registryFor(country) { return country?.iso2 ? list.registries.get(country.iso2) : null; }
+function setListMode(mode) {
+  list.mode = registryFor(state.country) ? mode : 'directory';
+  for (const button of $('listMode').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.mode === list.mode));
+  const registry = list.mode === 'registry';
+  $('facilityTools').classList.toggle('registry', registry);
+  $('search').placeholder = registry ? `Search ${registryFor(state.country).name} by name…` : 'Search facility name or city…';
+}
+function updateListModeSwitch() {
+  $('listMode').hidden = !registryFor(state.country);
+  setListMode('directory');
+}
 function resetFacilityTools() {
+  updateListModeSwitch();
   $('search').value = '';
   $('search').disabled = !state.country;
   const select = $('category');
@@ -600,7 +616,62 @@ function openRecord(item) {
 }
 function closeDrawer() { $('drawer').hidden = true; }
 
+async function reloadRegistry({append = false} = {}) {
+  const country = state.country, source = registryFor(country);
+  if (!country || !source) return;
+  // Separate controller/token from the Neon directory request, which must still finish its count.
+  if (list.registryAbort) list.registryAbort.abort();
+  const abort = new AbortController();
+  list.registryAbort = abort;
+  const token = ++list.registryToken;
+  const listNode = $('facilityList'), more = $('loadMore');
+  if (!append) {
+    list.items = []; list.registryTotal = null; list.page = 0; list.cursor = null;
+    listNode.replaceChildren(...Array.from({length: 3}, () => Object.assign(document.createElement('div'), {className: 'skeleton'})));
+    listNode.setAttribute('aria-busy', 'true');
+    $('listLabel').textContent = `Searching ${source.name}…`;
+    more.hidden = true;
+  }
+  more.disabled = true;
+  try {
+    const data = await searchRegistry({country: country.iso2, name: $('search').value, page: list.page + 1, cursor: append ? list.cursor : null}, {signal: abort.signal});
+    if (token !== list.registryToken || list.mode !== 'registry') return;
+    if (!append) listNode.replaceChildren();
+    const items = data.items.map(record => toCardItem(record, source.name, country.iso3));
+    for (const item of items) listNode.appendChild(facilityCard(item));
+    list.items.push(...items);
+    list.page += 1;
+    list.cursor = data.next_cursor;
+    list.registryTotal = data.total; // kept apart from the Neon count shown in the country card
+    if (!list.items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = `No ${source.name} records match this search.`;
+      listNode.appendChild(empty);
+    }
+    $('listLabel').textContent = `${source.name} · ${list.registryTotal === null ? `${list.items.length.toLocaleString()} shown` : `${list.items.length.toLocaleString()} of ${list.registryTotal.toLocaleString()}`} · ${country.name} (not filtered by map region)`;
+    more.hidden = !data.has_more;
+  } catch (error) {
+    if (token !== list.registryToken || list.mode !== 'registry' || error.name === 'AbortError') return;
+    if (append) { $('listLabel').textContent = 'Could not load more registry results. Please try again.'; return; }
+    listNode.replaceChildren();
+    const box = document.createElement('div');
+    box.className = 'empty';
+    box.textContent = (error.status === 400 ? error.message : 'The national registry could not be reached.') + ' ';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = 'Retry';
+    retry.addEventListener('click', () => reloadRegistry());
+    box.appendChild(retry);
+    listNode.appendChild(box);
+    $('listLabel').textContent = 'National registry unavailable';
+  } finally {
+    if (token === list.registryToken && list.mode === 'registry') { more.disabled = false; listNode.removeAttribute('aria-busy'); }
+  }
+}
+
 async function reloadFacilities({append = false} = {}) {
+  if (list.mode === 'registry') return reloadRegistry({append});
   const country = state.country;
   if (!country) return;
   if (list.abort) list.abort.abort();
@@ -613,6 +684,7 @@ async function reloadFacilities({append = false} = {}) {
   const listNode = $('facilityList'), more = $('loadMore');
   if (!append) {
     list.items = []; list.total = null; list.page = 0;
+    if (list.registryAbort) list.registryAbort.abort(); // switching back to Directory cancels registry paging
     listNode.replaceChildren(...Array.from({length: 3}, () => Object.assign(document.createElement('div'), {className: 'skeleton'})));
     listNode.setAttribute('aria-busy', 'true');
     $('listLabel').textContent = 'Loading healthcare facilities…';
@@ -624,6 +696,15 @@ async function reloadFacilities({append = false} = {}) {
   try {
     const data = await listFacilities({country: country.iso3, region, category, search, page, perPage: PAGE_SIZE}, {signal: abort.signal});
     if (token !== list.token) return;
+    if (list.mode !== 'directory') { // registry view is showing: keep the Neon count current, leave its list alone
+      if (!append && !search && !category) {
+        list.total = data.total;
+        $('statFacilities').textContent = (data.total ?? data.facilities.length).toLocaleString();
+        const countNode = $('selectionCount');
+        if (countNode) countNode.textContent = data.total ? `${plural(data.total, 'healthcare facility')} published` : 'No healthcare facilities published here yet';
+      }
+      return;
+    }
     if (!append) listNode.replaceChildren();
     for (const item of data.facilities) listNode.appendChild(facilityCard(item));
     list.items.push(...data.facilities);
@@ -671,6 +752,15 @@ let searchTimer = 0;
 $('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => reloadFacilities(), 300); });
 $('category').addEventListener('change', () => reloadFacilities());
 $('loadMore').addEventListener('click', () => reloadFacilities({append: true}));
+$('listMode').addEventListener('click', event => {
+  const button = event.target.closest('button[data-mode]');
+  if (!button || button.dataset.mode === list.mode) return;
+  setListMode(button.dataset.mode);
+  $('search').value = '';
+  reloadFacilities();
+});
+// Which countries have a connected national registry (Cloudflare Worker). The map works without it.
+registrySources().then(map => { list.registries = map; if (state.country) $('listMode').hidden = !registryFor(state.country); }).catch(() => {});
 // With no breadcrumb bar, clicking empty sea (not a country or region) goes up one level.
 svg.on('click.up', event => {
   if (state.country && !event.target.closest?.('path.country:not(.hidden), path.region')) goUp();

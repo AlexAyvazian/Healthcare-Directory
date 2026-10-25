@@ -27,6 +27,7 @@ const files = [
   'assets/js/world-labels.js',
   'assets/js/world-catalog.js',
   'assets/js/world-config.js',
+  'assets/js/registry-data.js',
   'assets/vendor/world-atlas-countries-50m.json',
   'assets/vendor/world-atlas.LICENSE'
 ];
