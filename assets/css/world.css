@@ -11,11 +11,21 @@
 html,body{margin:0;min-height:100%}
 body{background:radial-gradient(circle at 20% 10%,#0d1f45 0,#050814 45%) fixed,#050814;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Arial,sans-serif;overflow-x:hidden}
 a{color:var(--hot)}
-.orb{position:fixed;border-radius:999px;filter:blur(10px);opacity:.5;mix-blend-mode:screen;pointer-events:none;animation:float 18s ease-in-out infinite alternate;z-index:0}
-.orb.one{width:360px;height:360px;background:#38bdf8;left:-120px;top:80px}
-.orb.two{width:280px;height:280px;background:#a78bfa;right:60px;top:60px;animation-delay:-5s}
-.orb.three{width:220px;height:220px;background:#34d399;right:20%;bottom:40px;animation-delay:-9s}
-@keyframes float{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(70px,45px,0) scale(1.12)}}
+/* Ice-white bioluminescent bubbles: hollow, rim-lit spheres that rise slowly, sway, and pulse
+ * with a soft cold glow. Purely decorative (aria-hidden, no pointer events). */
+.bubbles{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.bubbles span{position:absolute;left:var(--x);bottom:calc(var(--s) * -2);width:var(--s);height:var(--s);border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95) 0 7%,rgba(240,250,255,.3) 15%,rgba(215,238,255,.1) 45%,rgba(230,246,255,.45) 66%,rgba(248,252,255,.85) 71%,transparent 74%);
+  box-shadow:0 0 calc(var(--s) * .5) rgba(225,243,255,.55),0 0 calc(var(--s) * 1.1) rgba(195,228,255,.28),inset 0 0 calc(var(--s) * .3) rgba(235,248,255,.35);
+  mix-blend-mode:screen;opacity:0;will-change:transform,opacity;
+  animation:bubbleRise var(--d) linear var(--delay) infinite,bubbleGlow calc(var(--d) / 6) ease-in-out var(--delay) infinite alternate}
+@keyframes bubbleRise{
+  0%{transform:translate3d(0,0,0);opacity:0}
+  8%{opacity:.95}
+  50%{transform:translate3d(var(--sway),-55vh,0)}
+  92%{opacity:.8}
+  100%{transform:translate3d(calc(var(--sway) * -1),-112vh,0);opacity:0}}
+@keyframes bubbleGlow{from{filter:brightness(.85) drop-shadow(0 0 2px rgba(200,232,255,.25))}to{filter:brightness(1.35) drop-shadow(0 0 calc(var(--s) * .18) rgba(220,242,255,.7))}}
 .cursorGlow{position:fixed;left:-400px;top:-400px;width:280px;height:280px;border-radius:999px;background:radial-gradient(circle,rgba(125,211,252,.16),transparent 65%);pointer-events:none;transform:translate(-50%,-50%);z-index:1}
 .app{position:relative;z-index:2;height:100vh;height:100dvh;min-height:640px;padding:18px 24px 24px;display:grid;grid-template-columns:minmax(320px,1fr) 400px;grid-template-rows:auto minmax(0,1fr);gap:16px}
 .glass{background:linear-gradient(145deg,rgba(17,29,61,.75),rgba(7,12,27,.55));border:1px solid var(--line);box-shadow:0 24px 80px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-radius:28px}
@@ -138,4 +148,4 @@ h2{margin:0;font-size:26px;letter-spacing:-.03em}
   .facilityList{max-height:65vh}
   .drawer{right:8px;left:8px;bottom:8px;width:auto;max-height:70vh}
 }
-@media(prefers-reduced-motion:reduce){.orb{animation:none}*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+@media(prefers-reduced-motion:reduce){.bubbles span{animation:none;opacity:.45;bottom:auto;top:calc(var(--x) * .9)}*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
