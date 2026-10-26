@@ -14,8 +14,9 @@ import {gbNhsOds} from './sources/gb-nhs-ods.js';
 import {frAnnuaireSante} from './sources/fr-annuaire-sante.js';
 import {coReps} from './sources/co-reps.js';
 import {mxInegi} from './sources/mx-inegi.js';
+import {sgChas} from './sources/sg-chas.js';
 
-export const SOURCES = [usNppes, gbNhsOds, frAnnuaireSante, coReps, mxInegi];
+export const SOURCES = [usNppes, gbNhsOds, frAnnuaireSante, coReps, mxInegi, sgChas];
 const byId = new Map(SOURCES.map(s => [s.id, s]));
 const SEARCH_PARAMS = new Set(['country', 'source', 'name', 'city', 'region', 'postal_code', 'specialty', 'page', 'per_page', 'cursor']);
 const RATE_LIMIT = 60; // requests per minute per client IP (per Worker isolate; best-effort on the free tier)
