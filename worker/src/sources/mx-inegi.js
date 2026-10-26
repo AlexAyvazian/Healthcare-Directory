@@ -34,14 +34,14 @@ function toFacility(r) {
   });
 }
 
-async function query(where, page, perPage, ctx) {
+async function query(where, offset, limit, ctx) {
   const url = new URL(BASE + '/query');
   url.searchParams.set('where', where);
   url.searchParams.set('outFields', FIELDS);
   url.searchParams.set('returnGeometry', 'false');
   url.searchParams.set('orderByFields', 'id ASC');
-  url.searchParams.set('resultOffset', String((page - 1) * perPage));
-  url.searchParams.set('resultRecordCount', String(perPage));
+  url.searchParams.set('resultOffset', String(offset));
+  url.searchParams.set('resultRecordCount', String(limit));
   url.searchParams.set('f', 'json');
   const {body} = await fetchJson(url, ctx);
   if (body?.error || !Array.isArray(body?.features)) throw new Error('Unexpected INEGI response');
@@ -74,12 +74,12 @@ export const mxInegi = {
     if (q.city) clauses.push('(' + includes('municipio', q.city) + ' OR ' + includes('localidad', q.city) + ')');
     if (q.postal_code) clauses.push('cod_postal = ' + sqlString(q.postal_code.replace(/\s/g, '')));
     if (q.specialty) clauses.push(includes('nombre_act', q.specialty));
-    const rows = await query(clauses.join(' AND '), q.page, q.per_page + 1, ctx);
+    const rows = await query(clauses.join(' AND '), (q.page - 1) * q.per_page, q.per_page + 1, ctx);
     return {items: rows.slice(0, q.per_page).filter(r => r.id != null).map(toFacility), total: null, hasMore: rows.length > q.per_page};
   },
 
   async get(id, ctx) {
-    const rows = await query('id = ' + id, 1, 2, ctx);
+    const rows = await query('id = ' + id, 0, 2, ctx);
     const row = rows.find(r => String(r.id) === id);
     if (!row) throw notFound('DENUE establishment not found.');
     return toFacility(row);
