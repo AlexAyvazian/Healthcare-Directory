@@ -35,7 +35,7 @@ const entities = text => String(text || '')
 function row(feature) {
   if (!feature?.properties || typeof feature.properties.Description !== 'string') return null;
   const fields = {};
-  const rx = /<th\b[^>]*>([\s\S]*?)<\/th>\s*<td\b[^>]*>([\s\S]*?)<\/td>/gi;
+  const rx = /<th\b[^>]*>([^<>]*)<\/th>\s*<td\b[^>]*>([\s\S]*?)<\/td>/gi;
   let pair;
   while ((pair = rx.exec(feature.properties.Description)) !== null) {
     fields[entities(pair[1]).toUpperCase()] = entities(pair[2]);
