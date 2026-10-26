@@ -7,6 +7,7 @@ import {_resetRolesCache} from '../worker/src/sources/gb-nhs-ods.js';
 import {encodeCursor, decodeCursor} from '../worker/src/sources/fr-annuaire-sante.js';
 import {readable} from '../worker/src/facility.js';
 import {mxInegi} from '../worker/src/sources/mx-inegi.js';
+import {_resetChasCache} from '../worker/src/sources/sg-chas.js';
 
 const FRONTEND = 'https://healthcare-directory-u2l1.onrender.com';
 const KEY = 'test-esante-key-0123456789';
@@ -56,7 +57,7 @@ async function call(path, {env = ENV, origin = FRONTEND, method = 'GET', ip, fet
   const text = await response.text();
   return {status: response.status, headers: response.headers, body: text ? JSON.parse(text) : null, text};
 }
-test.beforeEach(() => { _resetRateLimit(); _resetRolesCache(); });
+test.beforeEach(() => { _resetRateLimit(); _resetRolesCache(); _resetChasCache(); });
 
 /* ---------- endpoints, CORS, read-only ---------- */
 test('health and sources describe the connected registries without exposing secrets', async () => {
@@ -498,7 +499,7 @@ test('SG CHAS: dataset polling uses API key only upstream and never returns coor
   assert.equal(results.body.items[0].address.postal_code,'629117');
   assert.equal(results.body.items[0].address.country_code,'SG');
   assert.equal(results.body.items[0].phone,'68615755');
-  assert.equal(results.body.items[0].address.line1,'1 JOO KOON CIRCLE');
+  assert.equal(results.body.items[0].address.line1,'1 Joo Koon Circle');
   assert.ok(!results.text.includes('fixture-singapore-key'));
   assert.ok(!('latitude' in results.body.items[0])&&!('longitude' in results.body.items[0]));
   assert.equal(calls.length,2);
