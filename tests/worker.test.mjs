@@ -400,45 +400,73 @@ test('CO REPS: apostrophe in a name is escaped before reaching SoQL', async () =
   assert.match(calls[0].url.searchParams.get('$where'), /O''BRIEN/);
 });
 
-/* ---------- Mexico: official public DENUE FeatureServer ---------- */
-test('MX INEGI: filters state, municipality and activity on the live FeatureServer, with correct pagination', async () => {
+/* ---------- Mexico: official token-based DENUE API ---------- */
+test('MX INEGI: unavailable without the official token, configured when bound', async () => {
+  const missing = await call('/search?country=MX&name=HOSPITAL');
+  assert.equal(missing.status, 503);
+  assert.equal(missing.body.error.code, 'source_not_configured');
+  const {fetchImpl, calls} = mockFetch([[() => true, {body: []}]]);
+  const supplied = await call('/sources', {env: {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'}});
+  const mexico = supplied.body.sources.find(s => s.id === 'mx-inegi');
+  assert.equal(mexico.configured, true);
+  assert.equal(mexico.requires_secret, 'INEGI_DENUE_TOKEN');
+  assert.deepEqual(mexico.filters, ['name', 'region', 'specialty']);
+  assert.ok(!supplied.text.includes('fixture-denue-token'));
+  assert.equal((await call('/search?country=MX&city=Centro', {env: {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'}, fetchImpl})).status, 400);
+  assert.equal(calls.length, 0);
+});
+
+test('MX INEGI: official BuscarAreaAct uses healthcare sector 62 and paginates with 1-based records', async () => {
   const site = {
-    id: 3963932, clee: '27004621113003201000000000U2',
-    nom_estab: 'HOSPITAL DEL SURESTE',
-    nombre_act: 'Hospitales generales del sector privado',
-    tipo_vial: 'AVENIDA', nom_vial: 'GREGORIO MENDEZ', numero_ext: '104',
-    nomb_asent: 'CENTRO', localidad: 'Villahermosa', municipio: 'Centro',
-    entidad: 'Tabasco', cve_ent: '27', cve_mun: '004', cod_postal: '86070',
-    telefono: '9931111111', correoelec: 'hospital@example.mx', www: 'www.example.mx'
+    Id: '3963932', CLEE: '27004622111000001000000000U2',
+    Nombre: 'HOSPITAL DEL SURESTE', Clase_actividad: 'Hospitales generales del sector privado',
+    Tipo_vialidad: 'AVENIDA', Calle: 'GREGORIO MENDEZ', Num_Exterior: '104',
+    Colonia: 'CENTRO', CP: '86070', Ubicacion: 'VILLAHERMOSA, Centro, TABASCO',
+    Telefono: '9931111111', Correo_e: 'hospital@example.mx', Sitio_internet: 'www.example.mx',
+    SUBSECTOR_ACTIVIDAD_ID: '622', SECTOR_ACTIVIDAD_ID: '62', CLASE_ACTIVIDAD_ID: '622111'
   };
   const {fetchImpl, calls} = mockFetch([
-    [u => u.hostname === 'lcidsig.inegi.org.mx', {body: {features: [{attributes: site}, {attributes: {...site, id: 3963933}}]}}]
+    [u => u.hostname === 'www.inegi.org.mx', {body: [site, {...site, Id: '3963933'}]}]
   ]);
-  const q = parseSearch(new URLSearchParams('country=MX&region=27&city=Centro&name=HOSPITAL&specialty=Hospitales&postal_code=86070&per_page=1&page=2'));
-  const r = await mxInegi.search(q, {fetchImpl});
-  const url = calls[0].url;
-  assert.equal(url.pathname.endsWith('/FeatureServer/0/query'), true);
-  assert.equal(url.searchParams.get('resultOffset'), '1', 'page offset must use requested page size, not the extra lookahead row');
-  assert.equal(url.searchParams.get('resultRecordCount'), '2');
-  assert.equal(url.searchParams.get('returnGeometry'), 'false');
-  assert.match(url.searchParams.get('where'), /cve_ent = '27'/);
-  assert.match(url.searchParams.get('where'), /UPPER\(nom_estab\)/);
-  assert.match(url.searchParams.get('where'), /UPPER\(municipio\)/);
-  assert.match(url.searchParams.get('where'), /UPPER\(nombre_act\)/);
-  assert.match(url.searchParams.get('where'), /cod_postal = '86070'/);
-  assert.equal(r.items.length, 1);
-  assert.equal(r.hasMore, true);
-  assert.equal(r.items[0].id, 'mx-inegi:3963932');
-  assert.equal(r.items[0].address.country_code, 'MX');
-  assert.equal(r.items[0].address.region, 'Tabasco');
-  assert.equal(r.items[0].website, 'https://www.example.mx/');
-  assert.equal(r.items[0].email, 'hospital@example.mx');
-  assert.equal('latitude' in r.items[0], false, 'the directory must not expose individual pins');
-  const one = await mxInegi.get('3963932', {fetchImpl});
-  assert.equal(one.id, 'mx-inegi:3963932');
-  assert.equal(calls.at(-1).url.searchParams.get('where'), 'id = 3963932');
-  assert.throws(() => mxInegi.validate({...q, region: '33'}), /two-digit INEGI state code/);
-  const blocked = await call('/search?country=MX&region=27&name=HOSPITAL', {fetchImpl});
-  assert.equal(blocked.status, 503);
-  assert.equal(blocked.body.error.code, 'source_unavailable');
+  const env = {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'};
+  const r = await call('/search?country=MX&region=27&name=HOSPITAL&specialty=Hospitales&per_page=1&page=2', {env, fetchImpl});
+  assert.equal(r.status, 200);
+  const sent = calls[0].url;
+  assert.equal(sent.hostname, 'www.inegi.org.mx');
+  assert.equal(sent.protocol, 'https:');
+  assert.equal(sent.pathname, '/app/api/denue/v1/consulta/BuscarAreaAct/27/0/0/0/0/62/622/0/0/HOSPITAL/2/3/0/fixture-denue-token');
+  assert.equal(r.body.count, 1);
+  assert.equal(r.body.has_more, true);
+  assert.equal(r.body.items[0].id, 'mx-inegi:3963932');
+  assert.equal(r.body.items[0].address.country_code, 'MX');
+  assert.equal(r.body.items[0].address.region, 'Tabasco');
+  assert.equal(r.body.items[0].address.city, 'Villahermosa');
+  assert.equal(r.body.items[0].website, 'https://www.example.mx/');
+  assert.equal(r.body.items[0].email, 'hospital@example.mx');
+  assert.ok(!('latitude' in r.body.items[0]) && !('longitude' in r.body.items[0]));
+  assert.ok(!r.text.includes('fixture-denue-token'));
+  const detail = await call('/facilities/mx-inegi/3963932', {env, fetchImpl});
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.facility.id, 'mx-inegi:3963932');
+  assert.equal(calls.at(-1).url.pathname, '/app/api/denue/v1/consulta/BuscarAreaAct/00/0/0/0/0/62/0/0/0/0/1/2/3963932/fixture-denue-token');
+});
+
+test('MX INEGI: empty upstream results are an empty search, not a server error', async () => {
+  const env = {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'};
+  const {fetchImpl} = mockFetch([[() => true, {body: {Message: 'No se encontraron registros'}}]]);
+  const result = await call('/search?country=MX&region=27&name=ZZZXQYNOTEXIST', {env, fetchImpl});
+  assert.equal(result.status, 200);
+  assert.equal(result.body.count, 0);
+  assert.equal(result.body.has_more, false);
+  assert.deepEqual(result.body.items, []);
+});
+
+test('MX INEGI: restricts unknown specialties, state codes and unavailable location filters', async () => {
+  const env = {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'};
+  const {fetchImpl, calls} = mockFetch([[() => true, {body: []}]]);
+  assert.equal((await call('/search?country=MX&region=33', {env, fetchImpl})).status, 400);
+  assert.equal((await call('/search?country=MX&specialty=astrology', {env, fetchImpl})).status, 400);
+  assert.equal((await call('/search?country=MX&postal_code=86070', {env, fetchImpl})).status, 400);
+  assert.equal((await call('/facilities/mx-inegi/ABC', {env, fetchImpl})).status, 400);
+  assert.equal(calls.length, 0);
 });

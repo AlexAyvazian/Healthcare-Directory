@@ -59,7 +59,7 @@ directory does not draw facility pins.
 | `gb-nhs-ods` | GB | NHS England **Organisation Data Service** (ORD 2-0-0) | none | name, postal_code, specialty (ODS organisation type) | **Live**, including a browser test through the Worker |
 | `fr-annuaire-sante` | FR | ANS **Annuaire Santé** — API FHIR v2 (`Organization`) | `ESANTE_API_KEY` | name, city, postal_code | Implemented to the published FHIR spec and tested with fixtures. Live calls need the key (the ANS gateway refused this sandbox's IP). |
 | `co-reps` | CO | Colombia **REPS** official Socrata registry | none | name, city, region (two-digit DANE department), specialty (provider class) | Verified with live Socrata queries; results reflect source's published snapshot, not real-time licensing status. |
-| `mx-inegi` | MX | Mexico **INEGI DENUE** hosted ArcGIS FeatureServer health/social-assistance layer 62 | none | name, city, region (state code 01–32), postal_code, specialty (economic activity) | INTEGRATION BLOCKED: live Cloudflare requests fail with HTTP 526 TLS validation. Adapter and fixture tests are staged, but source is explicitly disabled in `/sources` until a reliable authorized INEGI API connection is available. |
+| `mx-inegi` | MX | Mexico **INEGI DENUE** official token-based API `BuscarAreaAct` (health/social-assistance sector 62) | `INEGI_DENUE_TOKEN` | name, region (state code 01–32), specialty (subsectors 621–624) | Official API integration; live Cloudflare requests must be verified after deployment. |
 
 Registry quirks handled in code:
 
@@ -78,8 +78,9 @@ to non-registry data.
 | Secret name | Needed for | How to get it |
 | --- | --- | --- |
 | `ESANTE_API_KEY` | France (`fr-annuaire-sante`) | Free. Create an account at <https://portal.api.esante.gouv.fr> (Gravitee), create an application, subscribe it to **"API Annuaire Santé en libre accès"**, then copy the API key shown under *Applications → Souscriptions*. |
+| `INEGI_DENUE_TOKEN` | Mexico (`mx-inegi`) | Issued by INEGI from <https://www.inegi.org.mx/servicios/api-denue/>; stored only as a Cloudflare Worker binding, never in GitHub code or browser requests. |
 
-US NPPES, NHS ODS, Colombia REPS and Mexico INEGI hosted FeatureServer need **no keys**.
+US NPPES, NHS ODS, and Colombia REPS need **no keys**. Mexico requires the `INEGI_DENUE_TOKEN` Cloudflare Worker binding.
 
 Enter the secret in one of two ways:
 
@@ -125,4 +126,4 @@ the Worker URL from `assets/js/world-config.js` (`REGISTRY_API_URL`).
 
 Deploy the Worker **before or together with** the Static Site change. The existing API routes and source adapters for the U.S., UK, and France must remain intact.
 
-**Mexico runtime limitation (verified October 26, 2026):** The public INEGI ArcGIS service can be read through some clients, but it returned HTTP 526 from a production Cloudflare Worker. The separate [official INEGI DENUE API](https://www.inegi.org.mx/servicios/api-denue/) requires an INEGI-issued token, not a Cloudflare API token. No INEGI token is configured in this Worker. Therefore Mexico is not advertised as available; its existing Neon map records are unchanged. Do not re-enable the adapter solely because unit fixtures pass.
+**Mexico origin:** The public INEGI ArcGIS FeatureServer previously returned HTTP 526 from Cloudflare. Mexico now uses the separate official DENUE API on `www.inegi.org.mx` with `INEGI_DENUE_TOKEN`, filtering to SCIAN sector 62. No per-facility coordinate pins, Neon imports, viewer exports, or downloads are introduced.
