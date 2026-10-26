@@ -59,7 +59,7 @@ directory does not draw facility pins.
 | `gb-nhs-ods` | GB | NHS England **Organisation Data Service** (ORD 2-0-0) | none | name, postal_code, specialty (ODS organisation type) | **Live**, including a browser test through the Worker |
 | `fr-annuaire-sante` | FR | ANS **Annuaire Santé** — API FHIR v2 (`Organization`) | `ESANTE_API_KEY` | name, city, postal_code | Implemented to the published FHIR spec and tested with fixtures. Live calls need the key (the ANS gateway refused this sandbox's IP). |
 | `co-reps` | CO | Colombia **REPS** official Socrata registry | none | name, city, region (two-digit DANE department), specialty (provider class) | Verified with live Socrata queries; results reflect source's published snapshot, not real-time licensing status. |
-| `mx-inegi` | MX | Mexico **INEGI DENUE** hosted ArcGIS FeatureServer health/social-assistance layer 62 | none | name, city, region (state code 01–32), postal_code, specialty (economic activity) | Verified with live INEGI queries; no upstream token required for this public layer. |
+| `mx-inegi` | MX | Mexico **INEGI DENUE** hosted ArcGIS FeatureServer health/social-assistance layer 62 | none | name, city, region (state code 01–32), postal_code, specialty (economic activity) | INTEGRATION BLOCKED: live Cloudflare requests fail with HTTP 526 TLS validation. Adapter and fixture tests are staged, but source is explicitly disabled in `/sources` until a reliable authorized INEGI API connection is available. |
 
 Registry quirks handled in code:
 
@@ -124,3 +124,5 @@ This updates the existing `healthcare-directory-api` modules in place. The Stati
 the Worker URL from `assets/js/world-config.js` (`REGISTRY_API_URL`).
 
 Deploy the Worker **before or together with** the Static Site change. The existing API routes and source adapters for the U.S., UK, and France must remain intact.
+
+**Mexico runtime limitation (verified October 26, 2026):** The public INEGI ArcGIS service can be read through some clients, but it returned HTTP 526 from a production Cloudflare Worker. The separate [official INEGI DENUE API](https://www.inegi.org.mx/servicios/api-denue/) requires an INEGI-issued token, not a Cloudflare API token. No INEGI token is configured in this Worker. Therefore Mexico is not advertised as available; its existing Neon map records are unchanged. Do not re-enable the adapter solely because unit fixtures pass.
