@@ -451,6 +451,16 @@ test('MX INEGI: official BuscarAreaAct uses healthcare sector 62 and paginates w
   assert.equal(calls.at(-1).url.pathname, '/app/api/denue/v1/consulta/BuscarAreaAct/00/0/0/0/0/62/0/0/0/0/1/2/3963932/fixture-denue-token');
 });
 
+test('MX INEGI: empty upstream results are an empty search, not a server error', async () => {
+  const env = {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'};
+  const {fetchImpl} = mockFetch([[() => true, {body: {Message: 'No se encontraron registros'}}]]);
+  const result = await call('/search?country=MX&region=27&name=ZZZXQYNOTEXIST', {env, fetchImpl});
+  assert.equal(result.status, 200);
+  assert.equal(result.body.count, 0);
+  assert.equal(result.body.has_more, false);
+  assert.deepEqual(result.body.items, []);
+});
+
 test('MX INEGI: restricts unknown specialties, state codes and unavailable location filters', async () => {
   const env = {...ENV, INEGI_DENUE_TOKEN: 'fixture-denue-token'};
   const {fetchImpl, calls} = mockFetch([[() => true, {body: []}]]);
