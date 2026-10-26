@@ -480,7 +480,7 @@ function chasRecord(id, name = 'Acumed Medical Group', postal = '629117') {
     BLK_HSE_NO:'1',FLOOR_NO:'01',UNIT_NO:'23',STREET_NAME:'JOO KOON CIRCLE',
     BUILDING_NAME:'FAIRPRICE HUB',CLINIC_PROGRAMME_CODE:'CDMP,CHAS'
   };
-  const desc='<center><table>'+Object.entries(fields).map(([k,v])=>'<tr><th>'+k+'</th><td>'+v+'</td></tr>').join('')+'</table></center>';
+  const desc="<center><table><tr><th colspan='2'><em>Attributes</em></th></tr>"+Object.entries(fields).map(([k,v])=>'<tr><th>'+k+'</th><td>'+v+'</td></tr>').join('')+'</table></center>';
   return {type:'Feature',properties:{Name:'kml_'+id,Description:desc},geometry:{type:'Point',coordinates:[103.678,1.325]}};
 }
 
