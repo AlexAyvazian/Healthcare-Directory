@@ -68,6 +68,8 @@ async function areaQuery({state = '00', sub = '0', name = '0', first = 1, last =
   if (Array.isArray(body)) return body;
   const message = typeof body === 'string' ? body : body?.Message || body?.Mensaje || body?.message;
   if (body == null || message && /no se encontr|sin resultados|no results/i.test(message)) return [];
+  // Log only the response shape for troubleshooting; never log tokens or record contents.
+  console.warn('inegi_unexpected_shape', body === null ? 'null' : typeof body, typeof body === 'object' && body !== null ? Object.keys(body).slice(0, 12).join(',') : 'text_length=' + String(body).length);
   throw new ApiError(502, 'upstream_error', 'INEGI returned an unexpected response.');
 }
 
