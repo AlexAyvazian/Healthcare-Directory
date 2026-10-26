@@ -24,7 +24,7 @@ Worker: `healthcare-directory-api` · URL: <https://healthcare-directory-api.ale
 
 | Parameter | Meaning |
 | --- | --- |
-| `country` | ISO 3166-1 alpha-2 code: `US`, `GB` or `FR` (or use `source` instead) |
+| `country` | ISO 3166-1 alpha-2 code: `US`, `GB`, `FR`, `CO` or `MX` (or use `source` instead) |
 | `name` | Facility or organisation name (max 100 characters) |
 | `city` | City or town |
 | `region` | State or region code (US: a two-letter state code) |
@@ -58,6 +58,8 @@ directory does not draw facility pins.
 | `us-nppes` | US | CMS **NPPES NPI Registry** API v2.1 (organizations, NPI-2) | none | name, city, region (state), postal_code, specialty (taxonomy) | **Live**, from this environment and the local Worker runtime |
 | `gb-nhs-ods` | GB | NHS England **Organisation Data Service** (ORD 2-0-0) | none | name, postal_code, specialty (ODS organisation type) | **Live**, including a browser test through the Worker |
 | `fr-annuaire-sante` | FR | ANS **Annuaire Santé** — API FHIR v2 (`Organization`) | `ESANTE_API_KEY` | name, city, postal_code | Implemented to the published FHIR spec and tested with fixtures. Live calls need the key (the ANS gateway refused this sandbox's IP). |
+| `co-reps` | CO | Colombia **REPS** official Socrata registry | none | name, city, region (two-digit DANE department), specialty (provider class) | Verified with live Socrata queries; results reflect source's published snapshot, not real-time licensing status. |
+| `mx-inegi` | MX | Mexico **INEGI DENUE** hosted ArcGIS FeatureServer health/social-assistance layer 62 | none | name, city, region (state code 01–32), postal_code, specialty (economic activity) | Verified with live INEGI queries; no upstream token required for this public layer. |
 
 Registry quirks handled in code:
 
@@ -77,7 +79,7 @@ to non-registry data.
 | --- | --- | --- |
 | `ESANTE_API_KEY` | France (`fr-annuaire-sante`) | Free. Create an account at <https://portal.api.esante.gouv.fr> (Gravitee), create an application, subscribe it to **"API Annuaire Santé en libre accès"**, then copy the API key shown under *Applications → Souscriptions*. |
 
-US NPPES and NHS ODS need **no keys**.
+US NPPES, NHS ODS, Colombia REPS and Mexico INEGI hosted FeatureServer need **no keys**.
 
 Enter the secret in one of two ways:
 
@@ -118,9 +120,7 @@ npm run build && E2E_PORT=4173 REGISTRY_WORKER_URL=http://127.0.0.1:8787 npm run
 cd worker && npx wrangler deploy
 ```
 
-This replaces the current "Hello World" code of `healthcare-directory-api`. The Static Site reads
+This updates the existing `healthcare-directory-api` modules in place. The Static Site reads
 the Worker URL from `assets/js/world-config.js` (`REGISTRY_API_URL`).
 
-Deploy the Worker **before or together with** the Static Site change. Until then the page still
-works: the "National registry" switch stays hidden. The browser does log a CORS notice, though,
-because the current Hello World Worker sends no CORS headers.
+Deploy the Worker **before or together with** the Static Site change. The existing API routes and source adapters for the U.S., UK, and France must remain intact.
