@@ -388,7 +388,7 @@ test('CO REPS: queries official Socrata registry with escaped filtering and corr
   assert.equal(r.body.items[0].phone, '3203016139');
   const one = await call('/facilities/co-reps/910010001901', {fetchImpl});
   assert.equal(one.status, 200);
-  assert.equal(one.body.facility.name, 'E.S.E. HOSPITAL SAN RAFAEL');
+  assert.equal(one.body.facility.name, 'E.S.E. Hospital San Rafael');
   assert.equal(calls.at(-1).url.searchParams.get('codigohabilitacionsede'), '910010001901');
   assert.equal((await call('/search?country=CO&region=Amazonas', {fetchImpl})).status, 400);
   assert.equal((await call('/facilities/co-reps/%3Cscript%3E', {fetchImpl})).status, 400);
