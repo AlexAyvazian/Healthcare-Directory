@@ -6,6 +6,7 @@ import worker, {_resetRateLimit, parseSearch} from '../worker/src/index.js';
 import {_resetRolesCache} from '../worker/src/sources/gb-nhs-ods.js';
 import {encodeCursor, decodeCursor} from '../worker/src/sources/fr-annuaire-sante.js';
 import {readable} from '../worker/src/facility.js';
+import {mxInegi} from '../worker/src/sources/mx-inegi.js';
 
 const FRONTEND = 'https://healthcare-directory-u2l1.onrender.com';
 const KEY = 'test-esante-key-0123456789';
@@ -62,7 +63,7 @@ test('health and sources describe the connected registries without exposing secr
   const health = await call('/health', {env: {...ENV, ESANTE_API_KEY: KEY}});
   assert.equal(health.status, 200);
   assert.deepEqual(health.body.sources.map(s => [s.id, s.country, s.configured]),
-    [['us-nppes', 'US', true], ['gb-nhs-ods', 'GB', true], ['fr-annuaire-sante', 'FR', true], ['co-reps', 'CO', true], ['mx-inegi', 'MX', true]]);
+    [['us-nppes', 'US', true], ['gb-nhs-ods', 'GB', true], ['fr-annuaire-sante', 'FR', true], ['co-reps', 'CO', true], ['mx-inegi', 'MX', false]]);
   const sources = await call('/sources', {env: ENV});
   assert.equal(sources.body.sources.find(s => s.id === 'fr-annuaire-sante').configured, false);
   assert.equal(sources.body.sources.find(s => s.id === 'fr-annuaire-sante').requires_secret, 'ESANTE_API_KEY');
@@ -413,8 +414,8 @@ test('MX INEGI: filters state, municipality and activity on the live FeatureServ
   const {fetchImpl, calls} = mockFetch([
     [u => u.hostname === 'lcidsig.inegi.org.mx', {body: {features: [{attributes: site}, {attributes: {...site, id: 3963933}}]}}]
   ]);
-  const r = await call('/search?country=MX&region=27&city=Centro&name=HOSPITAL&specialty=Hospitales&postal_code=86070&per_page=1&page=2', {fetchImpl});
-  assert.equal(r.status, 200);
+  const q = parseSearch(new URLSearchParams('country=MX&region=27&city=Centro&name=HOSPITAL&specialty=Hospitales&postal_code=86070&per_page=1&page=2'));
+  const r = await mxInegi.search(q, {fetchImpl});
   const url = calls[0].url;
   assert.equal(url.pathname.endsWith('/FeatureServer/0/query'), true);
   assert.equal(url.searchParams.get('resultOffset'), '1', 'page offset must use requested page size, not the extra lookahead row');
@@ -425,17 +426,19 @@ test('MX INEGI: filters state, municipality and activity on the live FeatureServ
   assert.match(url.searchParams.get('where'), /UPPER\(municipio\)/);
   assert.match(url.searchParams.get('where'), /UPPER\(nombre_act\)/);
   assert.match(url.searchParams.get('where'), /cod_postal = '86070'/);
-  assert.equal(r.body.count, 1);
-  assert.equal(r.body.has_more, true);
-  assert.equal(r.body.items[0].id, 'mx-inegi:3963932');
-  assert.equal(r.body.items[0].address.country_code, 'MX');
-  assert.equal(r.body.items[0].address.region, 'Tabasco');
-  assert.equal(r.body.items[0].website, 'https://www.example.mx/');
-  assert.equal(r.body.items[0].email, 'hospital@example.mx');
-  assert.equal('latitude' in r.body.items[0], false, 'the directory must not expose individual pins');
-  const one = await call('/facilities/mx-inegi/3963932', {fetchImpl});
-  assert.equal(one.status, 200);
+  assert.equal(r.items.length, 1);
+  assert.equal(r.hasMore, true);
+  assert.equal(r.items[0].id, 'mx-inegi:3963932');
+  assert.equal(r.items[0].address.country_code, 'MX');
+  assert.equal(r.items[0].address.region, 'Tabasco');
+  assert.equal(r.items[0].website, 'https://www.example.mx/');
+  assert.equal(r.items[0].email, 'hospital@example.mx');
+  assert.equal('latitude' in r.items[0], false, 'the directory must not expose individual pins');
+  const one = await mxInegi.get('3963932', {fetchImpl});
+  assert.equal(one.id, 'mx-inegi:3963932');
   assert.equal(calls.at(-1).url.searchParams.get('where'), 'id = 3963932');
-  assert.equal((await call('/search?country=MX&region=33', {fetchImpl})).status, 400);
-  assert.equal((await call('/facilities/mx-inegi/ABC', {fetchImpl})).status, 400);
+  assert.throws(() => mxInegi.validate({...q, region: '33'}), /two-digit INEGI state code/);
+  const blocked = await call('/search?country=MX&region=27&name=HOSPITAL', {fetchImpl});
+  assert.equal(blocked.status, 503);
+  assert.equal(blocked.body.error.code, 'source_unavailable');
 });
