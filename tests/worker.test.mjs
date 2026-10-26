@@ -133,7 +133,7 @@ test('country routing: supported countries map to their registry; others get a c
   const r = await call('/search?country=DE&name=klinik');
   assert.equal(r.status, 404);
   assert.equal(r.body.error.code, 'no_registry');
-  assert.deepEqual(r.body.error.details.supported_countries, ['US', 'GB', 'FR', 'CO', 'MX']);
+  assert.deepEqual(r.body.error.details.supported_countries, ['US', 'GB', 'FR', 'CO', 'MX', 'SG']);
   const mismatch = await call('/search?country=GB&source=us-nppes&name=x');
   assert.equal(mismatch.status, 400);
   const unknown = await call('/search?source=xx-none&name=x');
