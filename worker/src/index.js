@@ -12,14 +12,16 @@ import {ApiError, invalid, notFound, json} from './http.js';
 import {usNppes} from './sources/us-nppes.js';
 import {gbNhsOds} from './sources/gb-nhs-ods.js';
 import {frAnnuaireSante} from './sources/fr-annuaire-sante.js';
+import {coReps} from './sources/co-reps.js';
+import {mxInegi} from './sources/mx-inegi.js';
 
-export const SOURCES = [usNppes, gbNhsOds, frAnnuaireSante];
+export const SOURCES = [usNppes, gbNhsOds, frAnnuaireSante, coReps, mxInegi];
 const byId = new Map(SOURCES.map(s => [s.id, s]));
 const SEARCH_PARAMS = new Set(['country', 'source', 'name', 'city', 'region', 'postal_code', 'specialty', 'page', 'per_page', 'cursor']);
 const RATE_LIMIT = 60; // requests per minute per client IP (per Worker isolate; best-effort on the free tier)
 const CACHE_SECONDS = 300;
 
-const configured = (source, env) => !source.secret || Boolean(env?.[source.secret]);
+const configured = (source, env) => !source.disabledReason && (!source.secret || Boolean(env?.[source.secret]));
 const secretsOf = env => SOURCES.map(s => s.secret && env?.[s.secret]).filter(Boolean);
 
 /* ---------- CORS (FRONTEND_ORIGIN may list several origins, comma-separated) ---------- */
@@ -105,6 +107,7 @@ function pickSource(q, env) {
         {supported_countries: [...new Set(SOURCES.map(s => s.country))]});
     }
   }
+  if (source.disabledReason) throw new ApiError(503, 'source_unavailable', source.disabledReason);
   if (!configured(source, env)) {
     throw new ApiError(503, 'source_not_configured', `The ${source.name} needs the ${source.secret} Worker secret before it can be searched.`);
   }
@@ -163,6 +166,7 @@ async function route(request, env, ctx) {
     let id;
     try { id = decodeURIComponent(match[2]); } catch { throw invalid('Invalid facility id.'); }
     if (!source.idPattern.test(id)) throw invalid(`Invalid ${source.id} facility id.`);
+    if (source.disabledReason) throw new ApiError(503, 'source_unavailable', source.disabledReason);
     if (!configured(source, env)) throw new ApiError(503, 'source_not_configured', `The ${source.name} needs the ${source.secret} Worker secret.`);
     return {body: {facility: await source.get(id, upstream)}, cache: CACHE_SECONDS};
   }

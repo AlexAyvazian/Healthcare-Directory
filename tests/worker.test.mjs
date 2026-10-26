@@ -6,6 +6,7 @@ import worker, {_resetRateLimit, parseSearch} from '../worker/src/index.js';
 import {_resetRolesCache} from '../worker/src/sources/gb-nhs-ods.js';
 import {encodeCursor, decodeCursor} from '../worker/src/sources/fr-annuaire-sante.js';
 import {readable} from '../worker/src/facility.js';
+import {mxInegi} from '../worker/src/sources/mx-inegi.js';
 
 const FRONTEND = 'https://healthcare-directory-u2l1.onrender.com';
 const KEY = 'test-esante-key-0123456789';
@@ -62,7 +63,7 @@ test('health and sources describe the connected registries without exposing secr
   const health = await call('/health', {env: {...ENV, ESANTE_API_KEY: KEY}});
   assert.equal(health.status, 200);
   assert.deepEqual(health.body.sources.map(s => [s.id, s.country, s.configured]),
-    [['us-nppes', 'US', true], ['gb-nhs-ods', 'GB', true], ['fr-annuaire-sante', 'FR', true]]);
+    [['us-nppes', 'US', true], ['gb-nhs-ods', 'GB', true], ['fr-annuaire-sante', 'FR', true], ['co-reps', 'CO', true], ['mx-inegi', 'MX', false]]);
   const sources = await call('/sources', {env: ENV});
   assert.equal(sources.body.sources.find(s => s.id === 'fr-annuaire-sante').configured, false);
   assert.equal(sources.body.sources.find(s => s.id === 'fr-annuaire-sante').requires_secret, 'ESANTE_API_KEY');
@@ -131,7 +132,7 @@ test('country routing: supported countries map to their registry; others get a c
   const r = await call('/search?country=DE&name=klinik');
   assert.equal(r.status, 404);
   assert.equal(r.body.error.code, 'no_registry');
-  assert.deepEqual(r.body.error.details.supported_countries, ['US', 'GB', 'FR']);
+  assert.deepEqual(r.body.error.details.supported_countries, ['US', 'GB', 'FR', 'CO', 'MX']);
   const mismatch = await call('/search?country=GB&source=us-nppes&name=x');
   assert.equal(mismatch.status, 400);
   const unknown = await call('/search?source=xx-none&name=x');
@@ -347,4 +348,97 @@ test('worker source contains no hard-coded secrets, scrapers, schedules or stora
     assert.doesNotMatch(text, /\bscheduled\s*\(|\[triggers\]|crons\s*=|kv_namespaces|d1_databases|r2_buckets|postgres(ql)?:\/\//i, file);
     assert.doesNotMatch(text, /ESANTE_API_KEY\s*=\s*["'][^"']/, file);
   }
+});
+
+
+/* ---------- Colombia: Socrata REPS source ---------- */
+test('CO REPS: queries official Socrata registry with escaped filtering and correct site fields', async () => {
+  const site = {
+    codigoprestador: '9100100019',
+    codigohabilitacionsede: '910010001901',
+    nombresede: 'E.S.E. HOSPITAL SAN RAFAEL',
+    claseprestador: 'Instituciones Prestadoras de Servicios de Salud - IPS',
+    municipiosede: '91001',
+    municipiosededesc: 'LETICIA',
+    departamentodededesc: 'Amazonas',
+    direcci_nsede: 'CRA 10 # 13-78',
+    email_sede: 'calidad@example.co',
+    t_lefonosede: '3203016139',
+    fecha_corte_reps: 'Fecha corte REPS: Mar 12 2026'
+  };
+  const {fetchImpl, calls} = mockFetch([
+    [u => u.hostname === 'www.datos.gov.co', {body: [site, {...site, codigohabilitacionsede: '910010001902'}]}]
+  ]);
+  const r = await call('/search?country=CO&name=HOSPITAL&city=Leticia&region=91&specialty=IPS&per_page=1&page=2', {fetchImpl});
+  assert.equal(r.status, 200);
+  const sent = calls[0].url;
+  assert.equal(sent.hostname, 'www.datos.gov.co');
+  assert.equal(sent.searchParams.get('$order'), 'codigohabilitacionsede ASC');
+  assert.equal(sent.searchParams.get('$limit'), '2');
+  assert.equal(sent.searchParams.get('$offset'), '1');
+  assert.match(sent.searchParams.get('$where'), /municipiosede like '91%'/);
+  assert.match(sent.searchParams.get('$where'), /upper\(nombresede\)/);
+  assert.match(sent.searchParams.get('$where'), /upper\(municipiosededesc\)/);
+  assert.match(sent.searchParams.get('$where'), /upper\(claseprestador\)/);
+  assert.equal(r.body.count, 1);
+  assert.equal(r.body.has_more, true);
+  assert.equal(r.body.items[0].id, 'co-reps:910010001901');
+  assert.equal(r.body.items[0].address.region, 'Amazonas');
+  assert.equal(r.body.items[0].address.country_code, 'CO');
+  assert.equal(r.body.items[0].email, 'calidad@example.co');
+  assert.equal(r.body.items[0].phone, '3203016139');
+  const one = await call('/facilities/co-reps/910010001901', {fetchImpl});
+  assert.equal(one.status, 200);
+  assert.equal(one.body.facility.name, 'E.S.E. Hospital San Rafael');
+  assert.equal(calls.at(-1).url.searchParams.get('codigohabilitacionsede'), '910010001901');
+  assert.equal((await call('/search?country=CO&region=Amazonas', {fetchImpl})).status, 400);
+  assert.equal((await call('/facilities/co-reps/%3Cscript%3E', {fetchImpl})).status, 400);
+});
+test('CO REPS: apostrophe in a name is escaped before reaching SoQL', async () => {
+  const {fetchImpl, calls} = mockFetch([[() => true, {body: []}]]);
+  await call('/search?country=CO&name=O%27Brien', {fetchImpl});
+  assert.match(calls[0].url.searchParams.get('$where'), /O''BRIEN/);
+});
+
+/* ---------- Mexico: official public DENUE FeatureServer ---------- */
+test('MX INEGI: filters state, municipality and activity on the live FeatureServer, with correct pagination', async () => {
+  const site = {
+    id: 3963932, clee: '27004621113003201000000000U2',
+    nom_estab: 'HOSPITAL DEL SURESTE',
+    nombre_act: 'Hospitales generales del sector privado',
+    tipo_vial: 'AVENIDA', nom_vial: 'GREGORIO MENDEZ', numero_ext: '104',
+    nomb_asent: 'CENTRO', localidad: 'Villahermosa', municipio: 'Centro',
+    entidad: 'Tabasco', cve_ent: '27', cve_mun: '004', cod_postal: '86070',
+    telefono: '9931111111', correoelec: 'hospital@example.mx', www: 'www.example.mx'
+  };
+  const {fetchImpl, calls} = mockFetch([
+    [u => u.hostname === 'lcidsig.inegi.org.mx', {body: {features: [{attributes: site}, {attributes: {...site, id: 3963933}}]}}]
+  ]);
+  const q = parseSearch(new URLSearchParams('country=MX&region=27&city=Centro&name=HOSPITAL&specialty=Hospitales&postal_code=86070&per_page=1&page=2'));
+  const r = await mxInegi.search(q, {fetchImpl});
+  const url = calls[0].url;
+  assert.equal(url.pathname.endsWith('/FeatureServer/0/query'), true);
+  assert.equal(url.searchParams.get('resultOffset'), '1', 'page offset must use requested page size, not the extra lookahead row');
+  assert.equal(url.searchParams.get('resultRecordCount'), '2');
+  assert.equal(url.searchParams.get('returnGeometry'), 'false');
+  assert.match(url.searchParams.get('where'), /cve_ent = '27'/);
+  assert.match(url.searchParams.get('where'), /UPPER\(nom_estab\)/);
+  assert.match(url.searchParams.get('where'), /UPPER\(municipio\)/);
+  assert.match(url.searchParams.get('where'), /UPPER\(nombre_act\)/);
+  assert.match(url.searchParams.get('where'), /cod_postal = '86070'/);
+  assert.equal(r.items.length, 1);
+  assert.equal(r.hasMore, true);
+  assert.equal(r.items[0].id, 'mx-inegi:3963932');
+  assert.equal(r.items[0].address.country_code, 'MX');
+  assert.equal(r.items[0].address.region, 'Tabasco');
+  assert.equal(r.items[0].website, 'https://www.example.mx/');
+  assert.equal(r.items[0].email, 'hospital@example.mx');
+  assert.equal('latitude' in r.items[0], false, 'the directory must not expose individual pins');
+  const one = await mxInegi.get('3963932', {fetchImpl});
+  assert.equal(one.id, 'mx-inegi:3963932');
+  assert.equal(calls.at(-1).url.searchParams.get('where'), 'id = 3963932');
+  assert.throws(() => mxInegi.validate({...q, region: '33'}), /two-digit INEGI state code/);
+  const blocked = await call('/search?country=MX&region=27&name=HOSPITAL', {fetchImpl});
+  assert.equal(blocked.status, 503);
+  assert.equal(blocked.body.error.code, 'source_unavailable');
 });
