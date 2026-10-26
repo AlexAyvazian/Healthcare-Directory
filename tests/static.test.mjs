@@ -13,6 +13,7 @@ function fakeFetch(payload, range='0-0/1') {
   const calls=[];
   const fetchImpl=async (url,options)=>{
     calls.push({url,options});
+    if (String(url).endsWith('/token/anonymous')) return {ok:true,status:200,json:async()=>({token:'e30.e30.sig'})};
     return {ok:true,status:200,headers:{get:()=>range},json:async()=>payload};
   };
   return {fetchImpl,calls};
@@ -26,7 +27,7 @@ test('Neon URL is a public HTTPS REST endpoint, never a database credential',()=
 test('county requests use server-side RLS restricted, parameterized PostgREST filters',async()=>{
   const mock=fakeFetch([{id:1,name:'Facility A'}],'0-0/1');
   const result=await listCountyFacilities('06019',{page:1,perPage:100,category:'clinic',fetchImpl:mock.fetchImpl});
-  const url=new URL(mock.calls[0].url);
+  const url=new URL(mock.calls.find(call => call.url.includes('/rest/v1/')).url);
   assert.equal(url.searchParams.get('county_fips'),'eq.06019');
   assert.equal(url.searchParams.get('category'),'eq.clinic');
   assert.equal(url.searchParams.get('limit'),'101');
@@ -42,7 +43,7 @@ test('paging works even without a count response header',async()=>{
   assert.equal(result.has_more,true);
   assert.equal(result.total,null);
   assert.equal(result.facilities.length,2);
-  assert.equal(new URL(mock.calls[0].url).searchParams.get('offset'),'2');
+  assert.equal(new URL(mock.calls.find(call => call.url.includes('/rest/v1/')).url).searchParams.get('offset'),'2');
 });
 
 test('county requests validate FIPS and page',async()=>{
@@ -55,7 +56,7 @@ test('facility categories are loaded from the database view',async()=>{
   const mock=fakeFetch([{category:'hospital',total:4}]);
   const out=await listCategories({fetchImpl:mock.fetchImpl});
   assert.deepEqual(out.categories,[{category:'hospital',total:4}]);
-  assert.equal(new URL(mock.calls[0].url).pathname.endsWith('/facility_category_counts'),true);
+  assert.equal(new URL(mock.calls.find(call => call.url.includes('/rest/v1/')).url).pathname.endsWith('/facility_category_counts'),true);
 });
 
 test('Render build publishes only public viewer assets, without uploads or downloads',async()=>{
