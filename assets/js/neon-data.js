@@ -1,17 +1,43 @@
 /* Public, read-only Neon Data API. This URL is NOT a database password or a management key. */
 export const DATA_API_URL = 'https://ep-bitter-breeze-b4mo7ule.apirest.c-6.us-east-2.aws.neon.tech/neondb/rest/v1';
 const PUBLIC_COLUMNS = 'id,name,category,county_fips,address,city,state,postal_code,phone,website,latitude,longitude,source_name';
+export const US_AUTH_URL = 'https://ep-bitter-breeze-b4mo7ule.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth';
+let cachedToken = null;
+export function resetUsTokenCache() { cachedToken = null; }
+
+async function anonymousToken(fetchImpl, force = false) {
+  if (!force && cachedToken && cachedToken.expires - 60_000 > Date.now()) return cachedToken.value;
+  const response = await fetchImpl(US_AUTH_URL + '/token/anonymous', {
+    method: 'GET', headers: {Accept: 'application/json'}, credentials: 'omit', cache: 'no-store'
+  });
+  if (!response.ok) throw new Error('Could not open a read-only U.S. directory session (' + response.status + ').');
+  const body = await response.json();
+  if (typeof body?.token !== 'string' || body.token.split('.').length !== 3) throw new Error('Unexpected directory session response.');
+  let expires = Date.now() + 10 * 60_000;
+  try {
+    const claims = JSON.parse(atob(body.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (Number.isFinite(claims.exp)) expires = claims.exp * 1000;
+  } catch { /* retain conservative expiry */ }
+  cachedToken = {value: body.token, expires};
+  return cachedToken.value;
+}
 
 async function readArray(url, fetchImpl) {
-  const response = await fetchImpl(url.toString(), {
-    method: 'GET',
-    headers: {'Accept': 'application/json', 'Prefer': 'count=exact'},
-    cache: 'no-store'
-  });
-  if (!response.ok) throw new Error('Neon Data API request failed (' + response.status + ').');
-  const data = await response.json();
-  if (!Array.isArray(data)) throw new Error('Unexpected Neon Data API response.');
-  return {response, data};
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const bearer = await anonymousToken(fetchImpl, attempt > 0);
+    const response = await fetchImpl(url.toString(), {
+      method: 'GET',
+      headers: {'Accept': 'application/json', 'Prefer': 'count=exact', Authorization: 'Bearer ' + bearer},
+      credentials: 'omit', cache: 'no-store'
+    });
+    if (response.status === 401 && attempt === 0) continue;
+    if (response.status === 416) return {response, data: []};
+    if (!response.ok) throw new Error('Neon Data API request failed (' + response.status + ').');
+    const data = await response.json();
+    if (!Array.isArray(data)) throw new Error('Unexpected Neon Data API response.');
+    return {response, data};
+  }
+  throw new Error('U.S. directory session was rejected.');
 }
 
 export async function listCountyFacilities(countyFips, {category='',page=1,perPage=100,fetchImpl=fetch}={}) {
