@@ -55,6 +55,7 @@ export const mxInegi = {
   homepage: 'https://www.inegi.org.mx/app/mapa/denue/',
   country: 'MX',
   secret: null,
+  disabledReason: 'INEGI DENUE hosted ArcGIS endpoint fails TLS validation from Cloudflare (HTTP 526). Its separate official token-based API must be configured before enabling live searches.',
   filters: ['name', 'city', 'region', 'postal_code', 'specialty'],
   notes: 'Live search of the public INEGI DENUE hosted layer 62. Region accepts a two-digit INEGI state code (01–32); specialty matches the economic activity description.',
   maxPerPage: 50,
