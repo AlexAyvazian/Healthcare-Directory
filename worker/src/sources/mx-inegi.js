@@ -57,9 +57,18 @@ async function areaQuery({state = '00', sub = '0', name = '0', first = 1, last =
   // Official order: state/municipality/locality/AGEB/block/sector/subsector/branch/class/name/first/last/id/token.
   const parts = ['BuscarAreaAct', state, '0', '0', '0', '0', '62', sub, '0', '0', name, String(first), String(last), id, token];
   const url = new URL(ROOT + '/' + parts.map(x => encodeURIComponent(x)).join('/'));
-  const {body} = await fetchJson(url, ctx);
-  if (!Array.isArray(body)) throw new ApiError(502, 'upstream_error', 'INEGI returned an unexpected response.');
-  return body;
+  let body;
+  try {
+    ({body} = await fetchJson(url, ctx));
+  } catch (error) {
+    // The official registry sometimes signals zero matches with HTTP 404.
+    if (error instanceof ApiError && error.status === 404) return [];
+    throw error;
+  }
+  if (Array.isArray(body)) return body;
+  const message = typeof body === 'string' ? body : body?.Message || body?.Mensaje || body?.message;
+  if (body == null || message && /no se encontr|sin resultados|no results/i.test(message)) return [];
+  throw new ApiError(502, 'upstream_error', 'INEGI returned an unexpected response.');
 }
 
 export const mxInegi = {
