@@ -7,6 +7,7 @@ import {_resetRolesCache} from '../worker/src/sources/gb-nhs-ods.js';
 import {encodeCursor, decodeCursor} from '../worker/src/sources/fr-annuaire-sante.js';
 import {readable} from '../worker/src/facility.js';
 import {mxInegi} from '../worker/src/sources/mx-inegi.js';
+import {_resetChasCache} from '../worker/src/sources/sg-chas.js';
 
 const FRONTEND = 'https://healthcare-directory-u2l1.onrender.com';
 const KEY = 'test-esante-key-0123456789';
@@ -56,14 +57,14 @@ async function call(path, {env = ENV, origin = FRONTEND, method = 'GET', ip, fet
   const text = await response.text();
   return {status: response.status, headers: response.headers, body: text ? JSON.parse(text) : null, text};
 }
-test.beforeEach(() => { _resetRateLimit(); _resetRolesCache(); });
+test.beforeEach(() => { _resetRateLimit(); _resetRolesCache(); _resetChasCache(); });
 
 /* ---------- endpoints, CORS, read-only ---------- */
 test('health and sources describe the connected registries without exposing secrets', async () => {
   const health = await call('/health', {env: {...ENV, ESANTE_API_KEY: KEY}});
   assert.equal(health.status, 200);
   assert.deepEqual(health.body.sources.map(s => [s.id, s.country, s.configured]),
-    [['us-nppes', 'US', true], ['gb-nhs-ods', 'GB', true], ['fr-annuaire-sante', 'FR', true], ['co-reps', 'CO', true], ['mx-inegi', 'MX', false]]);
+    [['us-nppes', 'US', true], ['gb-nhs-ods', 'GB', true], ['fr-annuaire-sante', 'FR', true], ['co-reps', 'CO', true], ['mx-inegi', 'MX', false], ['sg-chas', 'SG', false]]);
   const sources = await call('/sources', {env: ENV});
   assert.equal(sources.body.sources.find(s => s.id === 'fr-annuaire-sante').configured, false);
   assert.equal(sources.body.sources.find(s => s.id === 'fr-annuaire-sante').requires_secret, 'ESANTE_API_KEY');
@@ -132,7 +133,7 @@ test('country routing: supported countries map to their registry; others get a c
   const r = await call('/search?country=DE&name=klinik');
   assert.equal(r.status, 404);
   assert.equal(r.body.error.code, 'no_registry');
-  assert.deepEqual(r.body.error.details.supported_countries, ['US', 'GB', 'FR', 'CO', 'MX']);
+  assert.deepEqual(r.body.error.details.supported_countries, ['US', 'GB', 'FR', 'CO', 'MX', 'SG']);
   const mismatch = await call('/search?country=GB&source=us-nppes&name=x');
   assert.equal(mismatch.status, 400);
   const unknown = await call('/search?source=xx-none&name=x');
@@ -469,4 +470,54 @@ test('MX INEGI: restricts unknown specialties, state codes and unavailable locat
   assert.equal((await call('/search?country=MX&postal_code=86070', {env, fetchImpl})).status, 400);
   assert.equal((await call('/facilities/mx-inegi/ABC', {env, fetchImpl})).status, 400);
   assert.equal(calls.length, 0);
+});
+
+
+/* ---------- Singapore MOH CHAS Clinics (public dataset with API key) ---------- */
+function chasRecord(id, name = 'Acumed Medical Group', postal = '629117') {
+  const fields = {
+    HCI_CODE:id,HCI_NAME:name,LICENCE_TYPE:'MC',HCI_TEL:'68615755',POSTAL_CD:postal,
+    BLK_HSE_NO:'1',FLOOR_NO:'01',UNIT_NO:'23',STREET_NAME:'JOO KOON CIRCLE',
+    BUILDING_NAME:'FAIRPRICE HUB',CLINIC_PROGRAMME_CODE:'CDMP,CHAS'
+  };
+  const desc="<center><table><tr><th colspan='2'><em>Attributes</em></th></tr>"+Object.entries(fields).map(([k,v])=>'<tr><th>'+k+'</th><td>'+v+'</td></tr>').join('')+'</table></center>';
+  return {type:'Feature',properties:{Name:'kml_'+id,Description:desc},geometry:{type:'Point',coordinates:[103.678,1.325]}};
+}
+
+test('SG CHAS: dataset polling uses API key only upstream and never returns coordinates', async () => {
+  const env={...ENV,DATA_GOV_SG_API_KEY:'fixture-singapore-key'};
+  const {fetchImpl,calls}=mockFetch([
+    [u=>u.hostname==='api-open.data.gov.sg',{body:{code:0,data:{url:'https://s3.ap-southeast-1.amazonaws.com/blobs.data.gov.sg/d_548c33ea2d99e29ec63a7cc9edcccedc.geojson?X-Amz-Date=20261026T080000Z'},errorMsg:''}}],
+    [u=>u.hostname==='s3.ap-southeast-1.amazonaws.com',{body:{type:'FeatureCollection',features:[chasRecord('15M0211'),chasRecord('20M0123','Test Hospital','123456')]}}]
+  ]);
+  const results=await call('/search?country=SG&name=Acumed&per_page=1',{env,fetchImpl});
+  assert.equal(results.status,200);
+  assert.equal(results.body.source,'sg-chas');
+  assert.equal(results.body.count,1);
+  assert.equal(results.body.items[0].id,'sg-chas:15M0211');
+  assert.equal(results.body.items[0].name,'Acumed Medical Group');
+  assert.equal(results.body.items[0].address.postal_code,'629117');
+  assert.equal(results.body.items[0].address.country_code,'SG');
+  assert.equal(results.body.items[0].phone,'68615755');
+  assert.equal(results.body.items[0].address.line1,'1 Joo Koon Circle');
+  assert.ok(!results.text.includes('fixture-singapore-key'));
+  assert.ok(!('latitude' in results.body.items[0])&&!('longitude' in results.body.items[0]));
+  assert.equal(calls.length,2);
+  assert.equal(calls[0].headers['x-api-key'],'fixture-singapore-key');
+  assert.ok(!('x-api-key' in calls[1].headers));
+  const single=await call('/facilities/sg-chas/15M0211',{env,fetchImpl});
+  assert.equal(single.status,200);
+  assert.equal(single.body.facility.name,'Acumed Medical Group');
+  const filtered=await call('/search?country=SG&postal_code=123456',{env,fetchImpl});
+  assert.equal(filtered.body.count,1);
+  assert.equal(filtered.body.items[0].id,'sg-chas:20M0123');
+});
+test('SG CHAS: unknown source and malformed signed URL fail closed',async()=>{
+  const env={...ENV,DATA_GOV_SG_API_KEY:'fixture-singapore-key'};
+  const {fetchImpl}=mockFetch([[()=>true,{body:{code:0,data:{url:'https://attacker.example/swap.geojson'}}}]]);
+  const r=await call('/search?country=SG&name=Acumed',{env,fetchImpl});
+  assert.equal(r.status,502);
+  assert.equal((await call('/search?country=SG&region=USA',{env,fetchImpl})).status,400);
+  const absent=await call('/search?country=SG&name=Acumed',{env:{...ENV},fetchImpl});
+  assert.equal(absent.status,503);
 });

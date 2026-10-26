@@ -24,7 +24,7 @@ Worker: `healthcare-directory-api` · URL: <https://healthcare-directory-api.ale
 
 | Parameter | Meaning |
 | --- | --- |
-| `country` | ISO 3166-1 alpha-2 code: `US`, `GB`, `FR`, `CO` or `MX` (or use `source` instead) |
+| `country` | ISO 3166-1 alpha-2 code: `US`, `GB`, `FR`, `CO`, `MX` or `SG` (or use `source` instead) |
 | `name` | Facility or organisation name (max 100 characters) |
 | `city` | City or town |
 | `region` | State or region code (US: a two-letter state code) |
@@ -60,6 +60,7 @@ directory does not draw facility pins.
 | `fr-annuaire-sante` | FR | ANS **Annuaire Santé** — API FHIR v2 (`Organization`) | `ESANTE_API_KEY` | name, city, postal_code | Implemented to the published FHIR spec and tested with fixtures. Live calls need the key (the ANS gateway refused this sandbox's IP). |
 | `co-reps` | CO | Colombia **REPS** official Socrata registry | none | name, city, region (two-digit DANE department), specialty (provider class) | Verified with live Socrata queries; results reflect source's published snapshot, not real-time licensing status. |
 | `mx-inegi` | MX | Mexico **INEGI DENUE** official token-based API `BuscarAreaAct` (health/social-assistance sector 62) | `INEGI_DENUE_TOKEN` | name, region (state code 01–32), specialty (subsectors 621–624) | Official API integration; live Cloudflare requests must be verified after deployment. |
+| `sg-chas` | SG | Singapore Ministry of Health **CHAS Clinics** published GeoJSON snapshot via data.gov.sg poll-download API | `DATA_GOV_SG_API_KEY` | name, six-digit postal_code, specialty (programme or licence type) | Verified in production Cloudflare Worker: search, detail, postal filtering, no full-file or coordinate response. Dataset last updated 6 June 2024; not a live operating-status register. |
 
 Registry quirks handled in code:
 
@@ -79,6 +80,7 @@ to non-registry data.
 | --- | --- | --- |
 | `ESANTE_API_KEY` | France (`fr-annuaire-sante`) | Free. Create an account at <https://portal.api.esante.gouv.fr> (Gravitee), create an application, subscribe it to **"API Annuaire Santé en libre accès"**, then copy the API key shown under *Applications → Souscriptions*. |
 | `INEGI_DENUE_TOKEN` | Mexico (`mx-inegi`) | Issued by INEGI from <https://www.inegi.org.mx/servicios/api-denue/>; stored only as a Cloudflare Worker binding, never in GitHub code or browser requests. |
+| `DATA_GOV_SG_API_KEY` | Singapore (`sg-chas`) | Self-service key from <https://data.gov.sg/dashboard>. The source is a dated MOH GeoJSON publication, not a live licensing registry. |
 
 US NPPES, NHS ODS, and Colombia REPS need **no keys**. Mexico requires the `INEGI_DENUE_TOKEN` Cloudflare Worker binding.
 
