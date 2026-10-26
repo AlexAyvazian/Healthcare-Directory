@@ -21,7 +21,7 @@ const SEARCH_PARAMS = new Set(['country', 'source', 'name', 'city', 'region', 'p
 const RATE_LIMIT = 60; // requests per minute per client IP (per Worker isolate; best-effort on the free tier)
 const CACHE_SECONDS = 300;
 
-const configured = (source, env) => !source.secret || Boolean(env?.[source.secret]);
+const configured = (source, env) => !source.disabledReason && (!source.secret || Boolean(env?.[source.secret]));
 const secretsOf = env => SOURCES.map(s => s.secret && env?.[s.secret]).filter(Boolean);
 
 /* ---------- CORS (FRONTEND_ORIGIN may list several origins, comma-separated) ---------- */
@@ -107,6 +107,7 @@ function pickSource(q, env) {
         {supported_countries: [...new Set(SOURCES.map(s => s.country))]});
     }
   }
+  if (source.disabledReason) throw new ApiError(503, 'source_unavailable', source.disabledReason);
   if (!configured(source, env)) {
     throw new ApiError(503, 'source_not_configured', `The ${source.name} needs the ${source.secret} Worker secret before it can be searched.`);
   }
