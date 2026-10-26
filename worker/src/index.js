@@ -166,6 +166,7 @@ async function route(request, env, ctx) {
     let id;
     try { id = decodeURIComponent(match[2]); } catch { throw invalid('Invalid facility id.'); }
     if (!source.idPattern.test(id)) throw invalid(`Invalid ${source.id} facility id.`);
+    if (source.disabledReason) throw new ApiError(503, 'source_unavailable', source.disabledReason);
     if (!configured(source, env)) throw new ApiError(503, 'source_not_configured', `The ${source.name} needs the ${source.secret} Worker secret.`);
     return {body: {facility: await source.get(id, upstream)}, cache: CACHE_SECONDS};
   }
