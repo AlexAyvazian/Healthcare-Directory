@@ -83,6 +83,7 @@ test('Render build publishes only public viewer assets, without uploads or downl
     'assets/vendor/us-atlas.LICENSE',
     'index.html',
     'assets/js/facility-logos.js',
+    'assets/js/directory-ui.js',
     'assets/css/facility-logos.css',
     'world.html',
     'assets/css/world.css',
@@ -111,10 +112,17 @@ test('Render build publishes only public viewer assets, without uploads or downl
   assert.ok(server.size>0);
 });
 
-test('U.S. directory gains only a navigation link to the international directory',async()=>{
+test('both directories share the same interface shell and card renderer',async()=>{
   const root=fileURLToPath(new URL('../',import.meta.url));
   const index=await readFile(join(root,'index.html'),'utf8');
-  assert.match(index,/<a class="toplink" href="\/world\.html">International directory<\/a>/);
+  const world=await readFile(join(root,'world.html'),'utf8');
+  for(const html of [index,world]) {
+    assert.match(html,/href="\/assets\/css\/world\.css"/);
+    for(const cls of ['header glass','mapPanel glass','sidePanel glass','directorySwitch','facilityList','drawer']) assert.ok(html.includes('class="'+cls+'"'),cls);
+  }
+  assert.match(index,/<a href="\/" aria-current="page">United States<\/a>/);
+  assert.match(world,/<a href="\/world\.html" aria-current="page">International<\/a>/);
+  for(const file of ['healthcare-map.js','world-map.js']) assert.match(await readFile(join(root,'assets/js',file),'utf8'),/from '\.\/directory-ui\.js'/);
   assert.match(index,/src="\/assets\/js\/healthcare-map\.js"/);
 });
 

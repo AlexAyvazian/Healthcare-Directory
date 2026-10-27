@@ -11,6 +11,7 @@ const dist = join(root,'dist');
 const files = [
   'index.html',
   'assets/js/facility-logos.js',
+  'assets/js/directory-ui.js',
   'assets/css/facility-logos.css',
   'assets/css/healthcare.css',
   'assets/js/healthcare-map.js',

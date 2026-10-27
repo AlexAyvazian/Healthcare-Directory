@@ -3,38 +3,75 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#050c19">
-  <title>U.S. Healthcare Facility Map</title>
+  <meta name="theme-color" content="#050814">
+  <title>United States Healthcare Directory</title>
+  <link rel="stylesheet" href="/assets/css/world.css">
   <link rel="stylesheet" href="/assets/css/healthcare.css">
   <link rel="stylesheet" href="/assets/css/facility-logos.css">
 </head>
-<body>
-  <header class="topbar">
-    <strong>Healthcare Facility Map</strong>
-    <nav aria-label="Map navigation">
-      <button id="home" type="button">United States</button>
-      <span id="breadcrumb" aria-live="polite"></span>
-      <a class="toplink" href="/world.html">International directory</a>
-    </nav>
-  </header>
-  <main>
-    <section class="mapArea" aria-label="Healthcare map">
-      <div class="controls">
-        <label for="category">Facility type</label>
-        <select id="category"><option value="">All healthcare facilities</option></select>
-        <button id="back" type="button" hidden>Back to United States</button>
+<body class="usView">
+  <div class="orb one" aria-hidden="true"></div><div class="orb two" aria-hidden="true"></div><div class="orb three" aria-hidden="true"></div>
+  <div class="orb four" aria-hidden="true"></div><div class="orb five" aria-hidden="true"></div><div class="orb six" aria-hidden="true"></div><div class="orb seven" aria-hidden="true"></div>
+  <div class="cursorGlow" id="cursorGlow" aria-hidden="true"></div>
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
+  <div class="app">
+    <header class="header glass">
+      <div class="titleBlock">
+        <h1>Global Healthcare Directory</h1>
       </div>
-      <svg id="mapSvg" role="group" aria-label="Interactive map: select a U.S. state, then a county"></svg>
-      <div id="status" role="status">Loading map…</div>
-    </section>
-    <aside class="facilities" aria-labelledby="facilitiesTitle">
-      <h1 id="facilitiesTitle">Healthcare facilities</h1>
-      <p id="subtitle">Select a state and county to view facilities stored in the database.</p>
-      <div id="facilityList" aria-live="polite"></div>
-      <p class="logoCredit">Logos by <a href="https://www.logo.dev" target="_blank" rel="noopener noreferrer">Logo.dev</a> and other providers.</p>
+      <div class="stats">
+        <div class="stat"><b id="statStates">–</b><span>states &amp; territories</span></div>
+        <div class="stat"><b id="statCounties">–</b><span>counties &amp; equivalents</span></div>
+        <div class="stat"><b id="statFacilities">–</b><span>facilities in selection</span></div>
+      </div>
+      <nav class="directorySwitch" aria-label="Directory">
+        <a href="/" aria-current="page">United States</a>
+        <a href="/world.html">International</a>
+      </nav>
+    </header>
+
+    <main class="mapPanel glass" aria-label="United States map">
+      <div class="mapShell" id="mapShell">
+        <svg id="mapSvg" role="group" aria-label="United States map. Select a state, then a county."></svg>
+        <div class="mapLabel" id="mapLabel" aria-live="polite">Loading U.S. boundaries…</div>
+        <div class="geoProgress" id="geoProgress" hidden><span></span></div>
+        <div class="loading" id="loading" role="status">Loading U.S. boundaries…</div>
+      </div>
+    </main>
+
+    <aside class="sidePanel glass" aria-labelledby="panelTitle">
+      <div class="sideTitle">
+        <div><h2 id="panelTitle">United States</h2><div class="muted" id="panelMeta" hidden></div></div>
+        <span class="modeBadge" id="modeBadge">U.S. map</span>
+      </div>
+      <section class="selectedCard" id="selectedCard" aria-live="polite"></section>
+      <section class="regionSection">
+        <div class="regionHead">
+          <span class="muted" id="regionLabel">States</span>
+          <input id="regionFilter" type="search" placeholder="Find a state…" aria-label="Find a state or county in the list">
+        </div>
+        <div class="regionGrid" id="regionList" role="list"></div>
+      </section>
+      <section class="facilitySection" aria-labelledby="listLabel">
+        <div class="facilityTools" id="facilityTools">
+          <input id="search" type="search" placeholder="Search facility name or city…" aria-label="Search facilities" disabled>
+          <select id="category" aria-label="Facility category" disabled><option value="">All categories</option></select>
+        </div>
+        <div class="muted listLabel" id="listLabel" aria-live="polite">Select a state and county to see healthcare facilities.</div>
+        <div class="facilityList" id="facilityList" tabindex="-1"></div>
+        <p class="logoCredit">Logos by <a href="https://www.logo.dev" target="_blank" rel="noopener noreferrer">Logo.dev</a> and other providers.</p>
       <button id="loadMore" type="button" hidden>Load more facilities</button>
+      </section>
+
+      <p class="attribution">U.S. states and counties: U.S. Census Bureau via us-atlas.</p>
     </aside>
-  </main>
+  </div>
+
+  <div class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" hidden>
+    <button class="close" id="drawerClose" type="button" aria-label="Close facility details">×</button>
+    <div id="drawerBody"></div>
+  </div>
+
   <script src="/assets/vendor/d3.min.js"></script>
   <script src="/assets/vendor/topojson-client.min.js"></script>
   <script src="/assets/vendor/us-atlas-counties-albers-10m.js"></script>

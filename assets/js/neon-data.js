@@ -40,7 +40,7 @@ async function readArray(url, fetchImpl) {
   throw new Error('U.S. directory session was rejected.');
 }
 
-export async function listCountyFacilities(countyFips, {category='',page=1,perPage=100,fetchImpl=fetch}={}) {
+export async function listCountyFacilities(countyFips, {category='',search='',page=1,perPage=100,fetchImpl=fetch}={}) {
   if (!/^\d{5}$/.test(countyFips)) throw new Error('Invalid county FIPS.');
   if (!Number.isSafeInteger(page) || page < 1) throw new Error('Invalid page.');
   if (!Number.isSafeInteger(perPage) || perPage < 1 || perPage > 249) throw new Error('Invalid page size.');
@@ -48,6 +48,8 @@ export async function listCountyFacilities(countyFips, {category='',page=1,perPa
   url.searchParams.set('select', PUBLIC_COLUMNS);
   url.searchParams.set('county_fips', 'eq.' + countyFips);
   if (category) url.searchParams.set('category','eq.' + category);
+  const term=String(search).replace(/[%_*,()"\\:{}]/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
+  if(term)url.searchParams.set('or',`(name.ilike."*${term}*",city.ilike."*${term}*")`);
   url.searchParams.set('order','name.asc,id.asc');
   url.searchParams.set('limit', String(perPage + 1));
   url.searchParams.set('offset', String((page - 1) * perPage));

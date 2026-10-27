@@ -1,4 +1,4 @@
-import {logoTitle} from './facility-logos.js';
+import {facilityCard as sharedFacilityCard,showRecord} from './directory-ui.js';
 /* International Directory map — the sibling of the original contact map (renderUSMap /
  * renderStateMap / renderSideList / openRecord at 4a0d5f1), extended to the world:
  * World → country → first-level region → deeper regions where geoBoundaries publishes them.
@@ -554,67 +554,12 @@ function linkLine(parent, href, text) {
   parent.appendChild(div);
 }
 function facilityCard(item) {
-  const card = document.createElement('article');
-  card.className = 'facility';
-  card.tabIndex = 0;
-  card.setAttribute('role', 'button');
-  card.setAttribute('aria-label', `${item.name} — open details`);
-  const h = document.createElement('h3');
-  h.textContent = item.name;
-  card.appendChild(h);
-  logoTitle(h,item,'international');
-  if (item.category) textLine(card, item.category.replace(/[-_]/g, ' '), 'badge');
-  const address = [item.address, item.city, item.postal_code].filter(Boolean).join(', ');
-  if (address) textLine(card, address);
-  if (item.phone) linkLine(card, 'tel:' + String(item.phone).replace(/[^\d+]/g, ''), item.phone);
-  if (item.email && /^[^\s@]+@[^\s@]+$/.test(item.email)) linkLine(card, 'mailto:' + item.email, item.email);
-  const site = safeUrl(item.website);
-  if (site) linkLine(card, site, 'Website ↗');
-  if (item.source_name) textLine(card, 'Source: ' + item.source_name, 'src');
-  card.addEventListener('click', () => openRecord(item));
-  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRecord(item); } });
-  return card;
+  return sharedFacilityCard(item,{directory:'international',onOpen:openRecord});
 }
 function openRecord(item) {
-  const body = $('drawerBody');
-  body.replaceChildren();
-  const h = document.createElement('h3');
-  h.id = 'drawerTitle';
-  h.textContent = item.name;
-  body.appendChild(h);
-  if (item.category) textLine(body, item.category.replace(/[-_]/g, ' '), 'badge');
-  const field = (label, value, href) => {
-    if (!value) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'field';
-    const l = document.createElement('label');
-    l.textContent = label;
-    const v = document.createElement('div');
-    if (href) {
-      const a = document.createElement('a');
-      a.href = href; a.textContent = value;
-      if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-      v.appendChild(a);
-    } else v.textContent = value;
-    wrap.append(l, v);
-    body.appendChild(wrap);
-  };
-  const country = byIso.get(item.country_iso3);
-  field('Region', [...(Array.isArray(item.admin_names) ? item.admin_names.slice().reverse() : []), country?.name || item.country_iso3].filter(Boolean).join(', '));
-  field('Address', item.address);
-  field('City', item.city);
-  field('Postal code', item.postal_code);
-  field('Telephone', item.phone, item.phone ? 'tel:' + String(item.phone).replace(/[^\d+]/g, '') : null);
-  field('Email', item.email && /^[^\s@]+@[^\s@]+$/.test(item.email) ? item.email : null, 'mailto:' + item.email);
-  const site = safeUrl(item.website);
-  field('Website', site ? item.website : null, site);
-  const sourceUrl = safeUrl(item.source_url);
-  field('Source', item.source_name, sourceUrl);
-  if (item.source_retrieved_at) field('Source retrieved', new Date(item.source_retrieved_at).toLocaleDateString());
-  const drawer = $('drawer');
-  drawer.style.setProperty('--drawerGlow', getComputedStyle(document.documentElement).getPropertyValue('--glow') || '#69dcff');
-  drawer.hidden = false;
-  $('drawerClose').focus();
+  const country=byIso.get(item.country_iso3);
+  const region=[...(Array.isArray(item.admin_names)?item.admin_names.slice().reverse():[]),country?.name||item.country_iso3].filter(Boolean).join(', ');
+  showRecord(item,{region,glow:getComputedStyle(document.documentElement).getPropertyValue('--glow')||'#69dcff'});
 }
 function closeDrawer() { $('drawer').hidden = true; }
 

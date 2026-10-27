@@ -49,3 +49,16 @@ test('categories use anonymous GET session instead of an unauthenticated request
   assert.deepEqual(out.categories,[{category:'hospital',total:5419}]);
   assert.ok(calls.find(c=>c.url.includes('/facility_category_counts'))?.options?.headers?.Authorization?.startsWith('Bearer '));
 });
+
+test('U.S. sidebar search is applied on the server within the selected county',async()=>{
+  resetUsTokenCache();let query;
+  const fetchImpl=async(url)=>{
+    if(String(url).endsWith('/token/anonymous'))return {ok:true,status:200,json:async()=>({token:jwt()})};
+    query=new URL(url);return {ok:true,status:200,headers:{get:()=> '0-0/1'},json:async()=>[{id:1,name:'Fresno hospital'}]};
+  };
+  await listCountyFacilities('06019',{search:'Fresno',fetchImpl});
+  assert.equal(query.searchParams.get('county_fips'),'eq.06019');
+  assert.equal(query.searchParams.get('or'),'(name.ilike."*Fresno*",city.ilike."*Fresno*")');
+  await listCountyFacilities('06019',{search:'x"),id.gt.0%_*',fetchImpl});
+  assert.equal(query.searchParams.get('or'),'(name.ilike."*x id.gt.0*",city.ilike."*x id.gt.0*")');
+});
