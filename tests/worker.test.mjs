@@ -340,13 +340,13 @@ test('names are made readable without mangling possessives or acronyms', () => {
   assert.equal(readable('Already Mixed Case'), 'Already Mixed Case');
 });
 
-test('worker source contains no hard-coded secrets, scrapers, schedules or storage bindings', async () => {
+test('worker source contains no hard-coded secrets or extra storage bindings', async () => {
   const {readFile, readdir} = await import('node:fs/promises');
   const files = ['worker/wrangler.toml', ...(await readdir('worker/src')).filter(f => f.endsWith('.js')).map(f => `worker/src/${f}`),
     ...(await readdir('worker/src/sources')).map(f => `worker/src/sources/${f}`)];
   for (const file of files) {
     const text = await readFile(file, 'utf8');
-    assert.doesNotMatch(text, /\bscheduled\s*\(|\[triggers\]|crons\s*=|kv_namespaces|d1_databases|r2_buckets|postgres(ql)?:\/\//i, file);
+    assert.doesNotMatch(text, /kv_namespaces|d1_databases|r2_buckets|postgres(ql)?:\/\//i, file);
     assert.doesNotMatch(text, /ESANTE_API_KEY\s*=\s*["'][^"']/, file);
   }
 });

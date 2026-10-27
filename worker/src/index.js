@@ -6,8 +6,10 @@
  *   GET /facilities/:source/:id         one facility record
  *
  * Read-only: GET/HEAD/OPTIONS only. Queries registries live on request; there is no scraping,
- * no scheduled collection, and nothing is stored. Neon databases are not used here.
+ * Registry records remain live/read-only. Logo enrichment uses two dedicated Neon projects.
  * Secrets (e.g. ESANTE_API_KEY) are Worker Secrets and never appear in responses or logs. */
+import {logoRoute} from './logos.js';
+import {runLogoJobs} from './logo-jobs.js';
 import {ApiError, invalid, notFound, json} from './http.js';
 import {usNppes} from './sources/us-nppes.js';
 import {gbNhsOds} from './sources/gb-nhs-ods.js';
@@ -43,13 +45,13 @@ function corsHeaders(request, env) {
 
 /* ---------- Rate limiting ---------- */
 const buckets = new Map();
-export function rateLimited(ip, now = Date.now()) {
+export function rateLimited(ip, now = Date.now(), limit = RATE_LIMIT) {
   const windowStart = now - 60_000;
   const hits = (buckets.get(ip) || []).filter(t => t > windowStart);
   hits.push(now);
   buckets.set(ip, hits);
   if (buckets.size > 5000) for (const [key, list] of buckets) if (!list.some(t => t > windowStart)) buckets.delete(key);
-  return hits.length > RATE_LIMIT ? Math.ceil((hits[0] + 60_000 - now) / 1000) : 0;
+  return hits.length > limit ? Math.ceil((hits[0] + 60_000 - now) / 1000) : 0;
 }
 export const _resetRateLimit = () => buckets.clear();
 
@@ -136,8 +138,12 @@ async function route(request, env, ctx) {
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const upstream = {env, secrets: secretsOf(env), timeoutMs: ctx?.timeoutMs || 8000, fetchImpl: ctx?.fetchImpl};
 
+  if (path.startsWith('/logos/')) {
+    const result=await logoRoute(request,env,ctx);
+    if(result) return result;
+  }
   if (path === '/' || path === '/health') {
-    return {body: {status: 'ok', service: 'healthcare-directory-api', sources: SOURCES.map(s => ({id: s.id, country: s.country, configured: configured(s, env)}))}, cache: 0};
+    return {body: {status: 'ok', service: 'healthcare-directory-api', logos: {usa: Boolean(env.HEALTHCARE_DIRECTORY_US_LOGO_DATABASE_URL), international: Boolean(env.HEALTHCARE_DIRECTORY_INTERNATIONAL_LOGO_DATABASE_URL)}, sources: SOURCES.map(s => ({id: s.id, country: s.country, configured: configured(s, env)}))}, cache: 0};
   }
   if (path === '/sources') {
     if ([...url.searchParams.keys()].length) throw invalid('/sources takes no parameters.');
@@ -175,6 +181,7 @@ async function route(request, env, ctx) {
 }
 
 export default {
+  async scheduled(controller,env,ctx) { ctx.waitUntil(runLogoJobs(env,controller.scheduledTime)); },
   async fetch(request, env, ctx = {}) {
     const cors = corsHeaders(request, env);
     if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
@@ -182,7 +189,8 @@ export default {
       return json({error: {code: 'method_not_allowed', message: 'This API is read-only.'}}, 405, {...cors, Allow: 'GET, HEAD, OPTIONS'});
     }
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-    const retry = rateLimited(ip);
+    const logoRequest = new URL(request.url).pathname.startsWith('/logos/');
+    const retry = rateLimited(ip + (logoRequest ? ':logos' : ''), Date.now(), logoRequest ? 240 : RATE_LIMIT);
     if (retry) return json({error: {code: 'rate_limited', message: 'Too many requests. Please slow down.'}}, 429, {...cors, 'Retry-After': String(retry)});
 
     // Edge cache (best effort; the Cache API is a no-op where unavailable).
@@ -199,7 +207,12 @@ export default {
       } catch { /* cache unavailable */ }
     }
     try {
-      const {body, cache: seconds} = await route(request, env, ctx);
+      const result = await route(request, env, ctx);
+      if(result instanceof Response) {
+        for(const [k,v] of Object.entries(cors)) result.headers.set(k,v);
+        return request.method==='HEAD' ? new Response(null,result) : result;
+      }
+      const {body, cache: seconds} = result;
       const response = json(body, 200, {'Cache-Control': seconds ? `public, max-age=${seconds}` : 'no-store'});
       if (cache && seconds && ctx.waitUntil) {
         try { ctx.waitUntil(cache.put(cacheKey, response.clone())); } catch { /* ignore */ }

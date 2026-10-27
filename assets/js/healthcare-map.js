@@ -1,3 +1,4 @@
+import {logoTitle} from './facility-logos.js';
 import {listCountyFacilities,listCategories} from './neon-data.js';
 /* Viewer-only map: facility records and categories come from the read-only Neon Data API. */
 (() => {
@@ -57,7 +58,7 @@ function clearList(message){$('subtitle').textContent=message;list.replaceChildr
 function textNode(tag,value,parent){const node=document.createElement(tag);node.textContent=String(value);parent.appendChild(node);return node;}
 function addFacility(item){
   const card=document.createElement('article');card.className='facility';
-  textNode('h2',item.name,card);textNode('div',item.category||'Facility',card);
+  const heading=textNode('h2',item.name,card);logoTitle(heading,item,'usa');textNode('div',item.category||'Facility',card);
   const address=[item.address,item.city,item.state,item.postal_code].filter(Boolean).join(', ');
   if(address)textNode('div',address,card);
   if(item.phone)textNode('div',item.phone,card);

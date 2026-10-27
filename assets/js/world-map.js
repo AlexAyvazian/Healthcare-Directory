@@ -1,3 +1,4 @@
+import {logoTitle} from './facility-logos.js';
 /* International Directory map — the sibling of the original contact map (renderUSMap /
  * renderStateMap / renderSideList / openRecord at 4a0d5f1), extended to the world:
  * World → country → first-level region → deeper regions where geoBoundaries publishes them.
@@ -561,6 +562,7 @@ function facilityCard(item) {
   const h = document.createElement('h3');
   h.textContent = item.name;
   card.appendChild(h);
+  logoTitle(h,item,'international');
   if (item.category) textLine(card, item.category.replace(/[-_]/g, ' '), 'badge');
   const address = [item.address, item.city, item.postal_code].filter(Boolean).join(', ');
   if (address) textLine(card, address);

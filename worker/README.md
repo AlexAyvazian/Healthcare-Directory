@@ -1,3 +1,10 @@
+# Registry API and persistent facility logos
+
+The registry endpoints below remain read-only and live. The Worker now also serves saved sidebar
+logos from two dedicated Neon projects and runs a separate resumable enrichment job. Statements
+below about no storage or scheduled collection apply to registry collection; logo enrichment is
+documented in [LOGO_ARCHITECTURE.md](../docs/LOGO_ARCHITECTURE.md).
+
 # healthcare-directory-api (Cloudflare Worker)
 
 A read-only API that searches **national healthcare registries** live, on request, and returns one

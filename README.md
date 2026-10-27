@@ -53,6 +53,13 @@ the public API. Removing buttons is **not** a prevention mechanism for extractin
 records. Truly preventing retrieval requires authenticated access control and limiting
 who can view the data.
 
+## Facility logos
+
+Both sidebars read saved logos through the Cloudflare Worker. Brand identity, facility mappings,
+lookup history, and saved Logo.dev PNGs live in two dedicated Neon logo projects, separate from
+the healthcare records. Initial enrichment runs independently of sidebar reads; successful matches
+and misses are retained. See [the architecture and operating guide](docs/LOGO_ARCHITECTURE.md).
+
 ## Node backend
 
 The existing Node backend remains in `server/` for private/local deployments. Render static hosting does **not** execute it, and the public map no longer calls its `/api/healthcare` endpoints.

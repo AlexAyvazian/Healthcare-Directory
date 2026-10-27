@@ -82,6 +82,8 @@ test('Render build publishes only public viewer assets, without uploads or downl
     'assets/vendor/us-atlas-counties-albers-10m.js',
     'assets/vendor/us-atlas.LICENSE',
     'index.html',
+    'assets/js/facility-logos.js',
+    'assets/css/facility-logos.css',
     'world.html',
     'assets/css/world.css',
     'assets/js/world-map.js',

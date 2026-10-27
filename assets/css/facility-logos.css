@@ -1,0 +1,5 @@
+.facilityHeading {display:flex;align-items:center;gap:10px;min-width:0;margin-bottom:6px}
+.facilityHeading h2,.facilityHeading h3 {margin:0;min-width:0;overflow-wrap:anywhere}
+.facilityLogo {position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border-radius:7px;background:rgba(255,255,255,.09);color:#a9cbdf;font-size:20px;overflow:hidden}
+.facilityLogo img {position:absolute;inset:0;width:32px;height:32px;object-fit:contain;background:#fff;border-radius:4px}
+.logoCredit {font-size:11px;color:#a4b4cb;margin:10px 0 0}.logoCredit a {color:inherit}

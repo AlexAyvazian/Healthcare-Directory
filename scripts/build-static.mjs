@@ -10,6 +10,8 @@ const dist = join(root,'dist');
 // Explicit allowlist: NEVER publish the Node server, environment files, scripts, or tests.
 const files = [
   'index.html',
+  'assets/js/facility-logos.js',
+  'assets/css/facility-logos.css',
   'assets/css/healthcare.css',
   'assets/js/healthcare-map.js',
   'assets/js/neon-data.js',

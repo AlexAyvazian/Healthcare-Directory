@@ -41,6 +41,7 @@ export async function searchRegistry({country, name = '', page = 1, cursor = nul
 export function toCardItem(record, sourceName, countryIso3) {
   return {
     id: record.id,
+    logo_source: record.source || sourceName.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
     name: record.name,
     category: record.category,
     address: [record.address?.line1, record.address?.line2].filter(Boolean).join(', ') || null,
