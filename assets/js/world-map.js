@@ -420,11 +420,7 @@ function updatePanel() {
   count.textContent = country ? countText() : 'Hover a country to light it up; click to focus it.';
   card.appendChild(count);
   if (country) {
-    const note = document.createElement('div');
-    note.className = 'note';
     const source = country.levels[Math.max(0, chain.length - 1)];
-    note.textContent = source ? `Boundaries: geoBoundaries ${source.level}${source.year ? ' (' + source.year + ')' : ''} · ${source.source || 'source not stated'} · ${source.license || 'licence not stated'}` : 'Boundaries: Natural Earth country outline.';
-    card.appendChild(note);
     $('geoCredit').textContent = source ? `geoBoundaries ${country.iso3} ${source.level} — ${source.source || ''} (${source.license || 'licence not stated'})` : 'geoBoundaries (gbOpen), loaded per country.';
     if (state.geoError) {
       const retry = document.createElement('button');
